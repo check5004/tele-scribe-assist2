@@ -1,5 +1,14 @@
-// 定数とサンプルデータ
+/**
+ * 定数とサンプルデータ
+ * アプリケーションで使用する定数、テンプレート、初期データを定義
+ */
 
+/**
+ * サンプル変数の生成
+ * 初回起動時またはリセット時に使用されるデフォルト変数セット
+ *
+ * @returns {Array} 変数オブジェクトの配列
+ */
 const createSampleVariables = () => [
     {
         id: Helpers.generateId(),
@@ -37,6 +46,13 @@ const createSampleVariables = () => [
     }
 ];
 
+/**
+ * サンプルセグメントの生成
+ * 初回起動時またはリセット時に使用されるデフォルトセグメントセット
+ * 変数と組み合わせて基本的な電話応答報告の雛形を提供
+ *
+ * @returns {Array} セグメントオブジェクトの配列
+ */
 const createSampleSegments = () => [
     { id: Helpers.generateId(), content: '{{着信時刻}}に{{会社名}}の{{相手先名}}より着信がありました。' },
     { id: Helpers.generateId(), content: '' },
@@ -48,6 +64,13 @@ const createSampleSegments = () => [
     { id: Helpers.generateId(), content: '明日の午前中までにご連絡予定です。' }
 ];
 
+/**
+ * サンプルテンプレート定義
+ * ユーザーが使用できる事前定義テンプレート集
+ *
+ * segment: 個々の文節テンプレート
+ * block: 複数セグメントで構成されるブロックテンプレート
+ */
 const SAMPLE_TEMPLATES = {
     segment: [
         '{{着信時刻}}に{{会社名}}の{{相手先名}}より着信がありました。',
@@ -74,12 +97,22 @@ const SAMPLE_TEMPLATES = {
     ]
 };
 
+/**
+ * 初期入力履歴定義
+ * オートコンプリートや履歴機能で使用される初期データ
+ *
+ * variables: 変数ごとの入力履歴（初期状態では空）
+ * segments: セグメント入力時の候補一覧
+ */
 const INITIAL_INPUT_HISTORY = {
     variables: {},
     segments: ['お世話になっております。', '以上、よろしくお願いいたします。']
 };
 
-// グローバルに公開
+/**
+ * グローバルスコープへの公開
+ * モジュラー構成での定数参照を可能にする
+ */
 window.Constants = {
     createSampleVariables,
     createSampleSegments,

@@ -1,15 +1,36 @@
-// 変数追加モーダルコンポーネント
+/**
+ * 変数追加モーダルコンポーネント
+ * 新しい変数を作成するためのモーダルダイアログ
+ *
+ * 機能:
+ * - 変数名の入力
+ * - 変数タイプの選択（テキスト/時刻）
+ * - 新しい変数の作成と状態への追加
+ * - Undoスタックへの操作保存
+ *
+ * @param {Array} variables - 現在の変数配列
+ * @param {Function} setVariables - 変数状態更新関数
+ * @param {Function} setShowVariableModal - モーダル表示状態更新関数
+ * @param {Function} saveToUndoStack - Undoスタック保存関数
+ */
 const VariableModal = ({ variables, setVariables, setShowVariableModal, saveToUndoStack }) => {
     const { useState } = React;
-    const [varName, setVarName] = useState('');
-    const [varType, setVarType] = useState('text');
 
+    // モーダル内のローカル状態
+    const [varName, setVarName] = useState(''); // 変数名
+    const [varType, setVarType] = useState('text'); // 変数タイプ
+
+    /**
+     * 変数追加処理
+     * 入力された内容に基づいて新しい変数オブジェクトを作成し、状態に追加
+     */
     const handleAdd = () => {
         const newVar = {
             id: Helpers.generateId(),
             name: varName,
             type: varType,
             value: varType === 'time' ? DateUtils.formatDateTime(new Date(), 'HH:mm') : '',
+            // 時刻タイプの場合はフォーマットと丸め設定を追加
             ...(varType === 'time' && {
                 format: 'HH:mm',
                 rounding: { enabled: false, unit: '5', method: 'floor' }
@@ -59,6 +80,9 @@ const VariableModal = ({ variables, setVariables, setShowVariableModal, saveToUn
     );
 };
 
-// グローバルに公開
+/**
+ * グローバルスコープへの公開
+ * モジュラー構成でのコンポーネント参照を可能にする
+ */
 window.Components = window.Components || {};
 window.Components.VariableModal = VariableModal;

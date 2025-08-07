@@ -1,12 +1,30 @@
-// メインアプリケーションコンポーネント
+/**
+ * メインアプリケーションコンポーネント
+ * TeleScribe Assistのルートコンポーネントとして全体の状態管理と画面描画を担当
+ *
+ * 主な機能:
+ * - 変数とセグメントの状態管理
+ * - リアルタイムプレビューの生成
+ * - セッション履歴の管理
+ * - ドラッグ&ドロップによるセグメント順序変更
+ * - Undo/Redo機能
+ * - データのインポート/エクスポート
+ * - クリップボードコピー機能
+ */
 function App() {
     const { useState, useEffect, useCallback } = React;
 
-    // 初期データの取得
+    /**
+     * 初期データの取得
+     * LocalStorageから保存されたデータを読み込み
+     */
     const { loadData, saveData } = Hooks.useLocalStorage();
     const initialData = loadData();
 
-    // State管理
+    /**
+     * State管理
+     * アプリケーション全体の状態を定義
+     */
     const [variables, setVariables] = useState(
         initialData?.variables || Constants.createSampleVariables()
     );
@@ -24,7 +42,10 @@ function App() {
         initialData?.inputHistory || Constants.INITIAL_INPUT_HISTORY
     );
 
-    // カスタムフック
+    /**
+     * カスタムフックの初期化
+     * Undo/Redo機能とドラッグ&ドロップ機能を設定
+     */
     const { undoStack, redoStack, saveToUndoStack, undo, redo } = Hooks.useUndoRedo(
         segments, variables, setSegments, setVariables
     );
@@ -32,12 +53,19 @@ function App() {
     // ドラッグ&ドロップの初期化
     Hooks.useDragDrop(segments, setSegments, saveToUndoStack);
 
-    // LocalStorage への保存
+    /**
+     * LocalStorageへの自動保存
+     * 状態が変更されるたびに自動的にデータを保存
+     */
     useEffect(() => {
         saveData(variables, segments, sessionHistory, templates, inputHistory);
     }, [variables, segments, sessionHistory, templates, inputHistory]);
 
-    // プレビュー更新
+    /**
+     * プレビューの自動更新
+     * セグメントまたは変数が変更されるたびにプレビューテキストを再生成
+     * 変数の置換処理（{{変数名}}パターンを実際の値に置換）を実行
+     */
     useEffect(() => {
         let text = segments.map(segment => {
             let content = segment.content;
@@ -50,7 +78,15 @@ function App() {
         setPreview(text);
     }, [segments, variables]);
 
-    // セグメント操作関数
+    /**
+     * セグメント操作関数群
+     */
+
+    /**
+     * セグメントの内容を更新
+     * @param {number} index - 更新するセグメントのインデックス
+     * @param {string} content - 新しい内容
+     */
     const updateSegment = useCallback((index, content) => {
         setSegments(prev => {
             const newSegments = [...prev];
@@ -59,6 +95,10 @@ function App() {
         });
     }, []);
 
+    /**
+     * セグメントを削除
+     * @param {number} index - 削除するセグメントのインデックス
+     */
     const deleteSegment = useCallback((index) => {
         setSegments(prev => {
             if (prev.length > 1) {
@@ -69,6 +109,10 @@ function App() {
         });
     }, [saveToUndoStack]);
 
+    /**
+     * 指定位置に新しいセグメントを追加
+     * @param {number} index - 追加位置のインデックス
+     */
     const addSegment = useCallback((index) => {
         setSegments(prev => {
             const newSegments = [...prev];
@@ -78,11 +122,16 @@ function App() {
         });
     }, [saveToUndoStack]);
 
-    // コピー機能
+    /**
+     * クリップボードコピー機能
+     * プレビュー内容を指定した形式でクリップボードにコピーし、
+     * 同時に現在の状態をセッション履歴に保存
+     * @param {string} format - コピー形式（plain、markdown、html）
+     */
     const copyToClipboard = (format = 'plain') => {
         DataService.copyToClipboard(preview, format);
 
-        // セッション履歴に追加
+        // セッション履歴に追加（最大50件まで保持）
         const newSession = {
             id: Helpers.generateId(),
             timestamp: new Date().toISOString(),
@@ -335,6 +384,9 @@ function App() {
     );
 }
 
-// グローバルに公開
+/**
+ * グローバルスコープへの公開
+ * モジュラー構成でのコンポーネント参照を可能にする
+ */
 window.Components = window.Components || {};
 window.Components.App = App;

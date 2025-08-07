@@ -1,11 +1,31 @@
-// 文節コンポーネント（メモ化）
+/**
+ * 文節コンポーネント（メモ化）
+ * 報告書の一部を構成する個々の文節を表示・編集するコンポーネント
+ *
+ * 機能:
+ * - ドラッグハンドルでの並び替え
+ * - デバウンス付きのリアルタイム編集
+ * - 文節の削除と追加
+ * - パフォーマンス最適化のためのReact.memoでラップ
+ *
+ * @param {Object} segment - セグメントオブジェクト (id, content)
+ * @param {number} index - 配列内のインデックス
+ * @param {Function} onUpdate - 内容更新時のコールバック
+ * @param {Function} onDelete - 削除時のコールバック
+ * @param {Function} onAdd - 追加時のコールバック
+ */
 const SegmentItem = React.memo(({ segment, index, onUpdate, onDelete, onAdd }) => {
     const { useRef, useState, useEffect } = React;
 
+    // ドラッグハンドルの参照
     const dragHandleRef = useRef(null);
+    // ローカル編集用の状態（デバウンス処理のため）
     const [localValue, setLocalValue] = useState(segment.content);
 
-    // ローカルの値が変更されたときに親に伝える（デバウンス）
+    /**
+     * ローカル値の変更を親コンポーネントに伝達（デバウンス処理）
+     * 300msの遅延で更新を送信し、連続した入力での長大な更新を防止
+     */
     useEffect(() => {
         const timer = setTimeout(() => {
             if (localValue !== segment.content) {
@@ -15,7 +35,10 @@ const SegmentItem = React.memo(({ segment, index, onUpdate, onDelete, onAdd }) =
         return () => clearTimeout(timer);
     }, [localValue]);
 
-    // 親からの値の変更を反映
+    /**
+     * 親コンポーネントからの値の変更をローカル状態に反映
+     * 他のセグメントからの影響やUndo/Redo操作に対応
+     */
     useEffect(() => {
         setLocalValue(segment.content);
     }, [segment.content]);
@@ -86,6 +109,9 @@ const SegmentItem = React.memo(({ segment, index, onUpdate, onDelete, onAdd }) =
     );
 });
 
-// グローバルに公開
+/**
+ * グローバルスコープへの公開
+ * モジュラー構成でのコンポーネント参照を可能にする
+ */
 window.Components = window.Components || {};
 window.Components.SegmentItem = SegmentItem;

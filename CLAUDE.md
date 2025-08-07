@@ -173,6 +173,55 @@ Export creates JSON with structure:
 - **Global objects**: Components, utilities, and services are exposed as global objects (e.g., `Components.App`, `Hooks.useLocalStorage`, `Utils.Helpers`)
 - **Japanese specification**: Refer to `docs/仕様書.md` for detailed functional requirements in Japanese
 
+## Code Documentation Standards
+
+### Japanese Documentation Comments
+**IMPORTANT**: This project uses comprehensive Japanese documentation comments throughout the codebase. When working with any code in this project:
+
+1. **Always add detailed Japanese JSDoc comments** for:
+   - All functions and methods
+   - All React components
+   - All custom hooks
+   - All service classes and their methods
+   - All utility functions
+   - All constants and configuration objects
+
+2. **Documentation format requirements**:
+   - Use `/**` JSDoc-style comments for all public functions/components
+   - Include detailed descriptions in Japanese explaining the purpose and functionality
+   - Add `@param` tags for all parameters with Japanese descriptions
+   - Add `@returns` tags for return values with Japanese descriptions
+   - Explain complex logic, algorithms, and implementation details
+   - Include usage examples or important notes where relevant
+
+3. **Examples of good documentation**:
+   ```javascript
+   /**
+    * メインアプリケーションコンポーネント
+    * TeleScribe Assistのルートコンポーネントとして全体の状態管理と画面描画を担当
+    *
+    * 主な機能:
+    * - 変数とセグメントの状態管理
+    * - リアルタイムプレビューの生成
+    * - セッション履歴の管理
+    *
+    * @param {Object} props - コンポーネントのプロパティ
+    * @returns {JSX.Element} メインアプリケーションのJSX
+    */
+   ```
+
+4. **When creating new code**:
+   - Write the Japanese documentation first to clarify the intended functionality
+   - Ensure all edge cases and important behaviors are documented
+   - Keep documentation up-to-date when modifying existing code
+
+5. **Existing codebase note**:
+   - All files in `src/` directory already have comprehensive Japanese documentation
+   - Follow the same patterns and level of detail when adding new code
+   - Maintain consistency with existing documentation style
+
+This documentation standard ensures code maintainability and helps developers understand the codebase efficiently.
+
 ## Future Enhancements (Low Priority)
 - Rich text editing with markdown support
 - Additional export formats
