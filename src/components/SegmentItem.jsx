@@ -4,7 +4,8 @@
  *
  * 機能:
  * - ドラッグハンドルでの並び替え
- * - デバウンス付きのリアルタイム編集
+ * - オートコンプリート機能付きのリアルタイム編集
+ * - テンプレート・履歴・変数候補の表示
  * - 文節の削除と追加
  * - パフォーマンス最適化のためのReact.memoでラップ
  *
@@ -13,8 +14,11 @@
  * @param {Function} onUpdate - 内容更新時のコールバック
  * @param {Function} onDelete - 削除時のコールバック
  * @param {Function} onAdd - 追加時のコールバック
+ * @param {Array} templates - テンプレート候補配列
+ * @param {Array} inputHistory - 入力履歴候補配列
+ * @param {Array} variables - 変数候補配列
  */
-const SegmentItem = React.memo(({ segment, index, onUpdate, onDelete, onAdd }) => {
+const SegmentItem = React.memo(({ segment, index, onUpdate, onDelete, onAdd, templates = [], inputHistory = [], variables = [] }) => {
     const { useRef, useState, useEffect } = React;
 
     // ドラッグハンドルの参照
@@ -63,12 +67,14 @@ const SegmentItem = React.memo(({ segment, index, onUpdate, onDelete, onAdd }) =
                 })
             )
         ),
-        React.createElement('input', {
-            type: "text",
+        React.createElement(Components.AutocompleteInput, {
             value: localValue,
-            onChange: (e) => setLocalValue(e.target.value),
-            className: "flex-1 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
-            placeholder: "文節を入力..."
+            onChange: setLocalValue,
+            templates: templates,
+            inputHistory: inputHistory,
+            variables: variables,
+            placeholder: "文節を入力...",
+            className: "flex-1 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         }),
         React.createElement('button', {
             onClick: () => onDelete(index),

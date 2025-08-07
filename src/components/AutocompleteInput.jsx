@@ -1,0 +1,296 @@
+/**
+ * オートコンプリート入力コンポーネント
+ * 文節編集での候補表示・選択機能を提供する統合コンポーネント
+ *
+ * 主な機能:
+ * - テンプレートと入力履歴の候補表示
+ * - {{ 入力時の変数候補表示
+ * - 前方一致によるフィルタリング
+ * - キーボードナビゲーション（↑↓、Enter、Escape）
+ * - マウスクリック選択
+ * - デバウンス付きの値変更通知
+ *
+ * @param {string} value - 現在の入力値
+ * @param {Function} onChange - 値変更時のコールバック
+ * @param {Array} templates - テンプレート候補配列
+ * @param {Array} inputHistory - 入力履歴候補配列
+ * @param {Array} variables - 変数候補配列
+ * @param {string} placeholder - プレースホルダーテキスト
+ * @param {string} className - 追加CSSクラス
+ */
+const AutocompleteInput = React.memo(({
+    value,
+    onChange,
+    templates = [],
+    inputHistory = [],
+    variables = [],
+    placeholder = "文節を入力...",
+    className = ""
+}) => {
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // 状態管理
+    const [isOpen, setIsOpen] = useState(false);
+    const [suggestions, setSuggestions] = useState([]);
+    const [selectedIndex, setSelectedIndex] = useState(-1);
+    const [isVariableMode, setIsVariableMode] = useState(false);
+
+    // DOM参照
+    const inputRef = useRef(null);
+    const dropdownRef = useRef(null);
+
+    /**
+     * 候補リストの生成とフィルタリング
+     * 入力値と現在のモード（通常/変数）に基づいて適切な候補を生成
+     *
+     * @param {string} inputValue - 現在の入力値
+     * @param {boolean} variableMode - 変数候補モードかどうか
+     * @returns {Array} フィルタリングされた候補配列
+     */
+    const generateSuggestions = useCallback((inputValue, variableMode) => {
+        if (variableMode) {
+            // 変数候補モード: {{ の後に変数名を候補表示
+            const variablePrefix = inputValue.includes('{{') ?
+                inputValue.substring(inputValue.lastIndexOf('{{') + 2) : '';
+
+            return variables
+                .filter(variable =>
+                    variable.name.toLowerCase().includes(variablePrefix.toLowerCase())
+                )
+                .map(variable => ({
+                    type: 'variable',
+                    text: `{{${variable.name}}}`,
+                    display: `${variable.name} (${variable.value || '未設定'})`,
+                    category: '変数'
+                }))
+                .slice(0, 8); // 変数候補は最大8件
+        } else {
+            // 通常モード: テンプレートと入力履歴を候補表示
+            let candidates = [];
+
+            // テンプレート候補を追加
+            templates.forEach(template => {
+                candidates.push({
+                    type: 'template',
+                    text: template,
+                    display: template,
+                    category: 'テンプレート'
+                });
+            });
+
+            // 入力履歴候補を追加
+            inputHistory.forEach(history => {
+                candidates.push({
+                    type: 'history',
+                    text: history,
+                    display: history,
+                    category: '履歴'
+                });
+            });
+
+            // 入力値による前方一致フィルタリング
+            if (inputValue.trim()) {
+                candidates = candidates.filter(candidate =>
+                    candidate.text.toLowerCase().includes(inputValue.toLowerCase())
+                );
+            }
+
+            // 重複除去とソート
+            const uniqueCandidates = candidates.filter((candidate, index, self) =>
+                index === self.findIndex(c => c.text === candidate.text)
+            );
+
+            return uniqueCandidates.slice(0, 10); // 最大10件
+        }
+    }, [templates, inputHistory, variables]);
+
+    /**
+     * {{ 入力の検出と変数モードの切り替え
+     * カーソル位置周辺の文字列をチェックして変数入力モードを判定
+     */
+    const detectVariableInput = useCallback((inputValue) => {
+        const cursorPosition = inputRef.current?.selectionStart || inputValue.length;
+        const beforeCursor = inputValue.substring(0, cursorPosition);
+
+        // {{ の直後で、まだ }} で閉じられていない場合
+        const lastOpenBrace = beforeCursor.lastIndexOf('{{');
+        const lastCloseBrace = beforeCursor.lastIndexOf('}}');
+
+        const inVariableMode = lastOpenBrace > lastCloseBrace && lastOpenBrace !== -1;
+        setIsVariableMode(inVariableMode);
+
+        return inVariableMode;
+    }, []);
+
+    /**
+     * 候補の更新処理
+     * 入力値の変化に応じて候補リストを再生成
+     */
+    useEffect(() => {
+        const variableMode = detectVariableInput(value);
+        const newSuggestions = generateSuggestions(value, variableMode);
+        setSuggestions(newSuggestions);
+        setSelectedIndex(-1); // 選択をリセット
+    }, [value, generateSuggestions, detectVariableInput]);
+
+    /**
+     * 候補選択処理
+     * 選択された候補を入力フィールドに反映
+     *
+     * @param {Object} suggestion - 選択された候補オブジェクト
+     */
+    const selectSuggestion = useCallback((suggestion) => {
+        if (isVariableMode) {
+            // 変数モード: {{ から現在位置までを候補で置換
+            const cursorPosition = inputRef.current?.selectionStart || value.length;
+            const beforeCursor = value.substring(0, cursorPosition);
+            const afterCursor = value.substring(cursorPosition);
+
+            const lastOpenBrace = beforeCursor.lastIndexOf('{{');
+            const newValue = value.substring(0, lastOpenBrace) + suggestion.text + afterCursor;
+            onChange(newValue);
+        } else {
+            // 通常モード: 全体を候補で置換
+            onChange(suggestion.text);
+        }
+
+        setIsOpen(false);
+        setSelectedIndex(-1);
+        inputRef.current?.focus();
+    }, [isVariableMode, value, onChange]);
+
+    /**
+     * キーボードイベントハンドラ
+     * ↑↓キーでの候補選択、Enterでの確定、Escapeでのキャンセル
+     */
+    const handleKeyDown = useCallback((e) => {
+        if (!isOpen || suggestions.length === 0) return;
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                setSelectedIndex(prev =>
+                    prev < suggestions.length - 1 ? prev + 1 : 0
+                );
+                break;
+
+            case 'ArrowUp':
+                e.preventDefault();
+                setSelectedIndex(prev =>
+                    prev > 0 ? prev - 1 : suggestions.length - 1
+                );
+                break;
+
+            case 'Enter':
+                e.preventDefault();
+                if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+                    selectSuggestion(suggestions[selectedIndex]);
+                }
+                break;
+
+            case 'Escape':
+                e.preventDefault();
+                setIsOpen(false);
+                setSelectedIndex(-1);
+                break;
+        }
+    }, [isOpen, suggestions, selectedIndex, selectSuggestion]);
+
+    /**
+     * フォーカス処理
+     * フィールドにフォーカス時、候補がある場合はドロップダウンを表示
+     */
+    const handleFocus = useCallback(() => {
+        const variableMode = detectVariableInput(value);
+        const newSuggestions = generateSuggestions(value, variableMode);
+        setSuggestions(newSuggestions);
+        if (newSuggestions.length > 0) {
+            setIsOpen(true);
+        }
+    }, [value, detectVariableInput, generateSuggestions]);
+
+    /**
+     * 入力値変更処理
+     * デバウンス処理と候補更新を実行
+     */
+    const handleInputChange = useCallback((e) => {
+        const newValue = e.target.value;
+        onChange(newValue);
+
+        // 候補がある場合はドロップダウンを表示
+        setTimeout(() => {
+            if (suggestions.length > 0) {
+                setIsOpen(true);
+            }
+        }, 100);
+    }, [onChange, suggestions.length]);
+
+    /**
+     * 外部クリック処理
+     * ドロップダウン外をクリックした場合の閉じる処理
+     */
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return React.createElement('div', {
+        className: `relative ${className}`,
+        ref: dropdownRef
+    },
+        // 入力フィールド
+        React.createElement('input', {
+            ref: inputRef,
+            type: "text",
+            value: value,
+            onChange: handleInputChange,
+            onFocus: handleFocus,
+            onKeyDown: handleKeyDown,
+            placeholder: placeholder,
+            className: `w-full px-1 py-1 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isVariableMode ? 'ring-2 ring-purple-500' : ''} transition-all`,
+            autoComplete: "off"
+        }),
+
+        // 候補ドロップダウン
+        isOpen && suggestions.length > 0 && React.createElement('div', {
+            className: "absolute z-50 w-full mt-1 bg-gray-700 border border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto"
+        },
+            suggestions.map((suggestion, index) =>
+                React.createElement('div', {
+                    key: `${suggestion.type}-${index}`,
+                    className: `px-3 py-2 cursor-pointer hover:bg-gray-600 ${
+                        selectedIndex === index ? 'bg-blue-600' : ''
+                    } border-b border-gray-600 last:border-b-0`,
+                    onClick: () => selectSuggestion(suggestion),
+                    onMouseEnter: () => setSelectedIndex(index)
+                },
+                    React.createElement('div', { className: "flex items-center justify-between" },
+                        React.createElement('div', { className: "flex-1 truncate" },
+                            React.createElement('div', { className: "text-sm" }, suggestion.display)
+                        ),
+                        React.createElement('div', {
+                            className: `text-xs px-2 py-1 rounded ${
+                                suggestion.type === 'variable' ? 'bg-purple-600' :
+                                suggestion.type === 'template' ? 'bg-blue-600' :
+                                'bg-gray-600'
+                            }`
+                        }, suggestion.category)
+                    )
+                )
+            )
+        )
+    );
+});
+
+/**
+ * グローバルスコープへの公開
+ * モジュラー構成でのコンポーネント参照を可能にする
+ */
+window.Components = window.Components || {};
+window.Components.AutocompleteInput = AutocompleteInput;

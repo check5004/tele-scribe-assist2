@@ -353,7 +353,10 @@ function App() {
                                     index: index,
                                     onUpdate: updateSegment,
                                     onDelete: deleteSegment,
-                                    onAdd: addSegment
+                                    onAdd: addSegment,
+                                    templates: templates.segment || [],
+                                    inputHistory: inputHistory.segments || [],
+                                    variables: variables
                                 })
                             )
                         ),
