@@ -41,6 +41,11 @@ function App() {
     const [inputHistory, setInputHistory] = useState(
         initialData?.inputHistory || Constants.INITIAL_INPUT_HISTORY
     );
+    const [variableUsageInfo, setVariableUsageInfo] = useState({
+        unusedVariables: [],
+        usedVariables: [],
+        variableUsage: {}
+    });
 
     /**
      * カスタムフックの初期化
@@ -76,6 +81,16 @@ function App() {
             return content;
         }).join('\n');
         setPreview(text);
+    }, [segments, variables]);
+
+    /**
+     * 変数使用状況の自動更新
+     * セグメントまたは変数が変更されるたびに使用状況を分析し、
+     * 未使用変数のハイライト表示に使用する情報を更新
+     */
+    useEffect(() => {
+        const usageInfo = Helpers.analyzeVariableUsage(variables, segments);
+        setVariableUsageInfo(usageInfo);
     }, [segments, variables]);
 
     /**
@@ -302,13 +317,32 @@ function App() {
                                 variables.map((variable, index) =>
                                     React.createElement('div', { key: variable.id, className: "space-y-2" },
                                         React.createElement('div', { className: "flex items-center justify-between" },
-                                            React.createElement('label', { className: "text-sm font-medium" }, variable.name),
+                                            React.createElement('label', {
+                                                className: `text-sm font-medium ${variableUsageInfo.unusedVariables.includes(variable.id) ? 'text-yellow-400 opacity-70' : 'text-gray-100'}`,
+                                                title: variableUsageInfo.unusedVariables.includes(variable.id) ? '未使用の変数です' : '使用中の変数です'
+                                            },
+                                                variable.name,
+                                                variableUsageInfo.unusedVariables.includes(variable.id) &&
+                                                React.createElement('span', { className: "ml-2 text-xs text-yellow-300" }, '(未使用)')
+                                            ),
                                             React.createElement('button', {
                                                 onClick: () => {
-                                                    setVariables(variables.filter(v => v.id !== variable.id));
-                                                    saveToUndoStack();
+                                                    const impact = Helpers.analyzeVariableDeletionImpact(variable.id, variables, segments);
+
+                                                    if (impact.canDelete) {
+                                                        // 未使用変数：そのまま削除
+                                                        setVariables(variables.filter(v => v.id !== variable.id));
+                                                        saveToUndoStack();
+                                                    } else {
+                                                        // 使用中変数：警告表示
+                                                        if (confirm(impact.warningMessage)) {
+                                                            setVariables(variables.filter(v => v.id !== variable.id));
+                                                            saveToUndoStack();
+                                                        }
+                                                    }
                                                 },
-                                                className: "text-red-400 hover:text-red-300"
+                                                className: "text-red-400 hover:text-red-300",
+                                                title: "変数を削除"
                                             },
                                                 React.createElement('svg', { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
                                                     React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M6 18L18 6M6 6l12 12" })
