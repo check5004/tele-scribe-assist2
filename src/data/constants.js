@@ -110,6 +110,39 @@ const INITIAL_INPUT_HISTORY = {
 };
 
 /**
+ * 時刻変数用フォーマットプリセット定義
+ * ユーザーが選択できる事前定義されたフォーマットオプション
+ */
+const TIME_FORMAT_PRESETS = [
+    { label: 'HH:mm (例: 14:30)', value: 'HH:mm' },
+    { label: 'YYYY/MM/DD HH:mm (例: 2024/03/15 14:30)', value: 'YYYY/MM/DD HH:mm' },
+    { label: 'MM/DD HH:mm (例: 03/15 14:30)', value: 'MM/DD HH:mm' },
+    { label: 'YYYY-MM-DD HH:mm:ss (例: 2024-03-15 14:30:00)', value: 'YYYY-MM-DD HH:mm:ss' },
+    { label: 'MM月DD日 HH:mm (例: 03月15日 14:30)', value: 'MM月DD日 HH:mm' },
+    { label: 'YYYY年MM月DD日 (例: 2024年03月15日)', value: 'YYYY年MM月DD日' }
+];
+
+/**
+ * 丸め設定用オプション定義
+ * 丸め単位と方法の選択肢
+ */
+const ROUNDING_OPTIONS = {
+    units: [
+        { label: '1分', value: '1' },
+        { label: '5分', value: '5' },
+        { label: '10分', value: '10' },
+        { label: '15分', value: '15' },
+        { label: '30分', value: '30' },
+        { label: '60分', value: '60' }
+    ],
+    methods: [
+        { label: '切り捨て', value: 'floor' },
+        { label: '四捨五入', value: 'round' },
+        { label: '切り上げ', value: 'ceil' }
+    ]
+};
+
+/**
  * グローバルスコープへの公開
  * モジュラー構成での定数参照を可能にする
  */
@@ -117,5 +150,7 @@ window.Constants = {
     createSampleVariables,
     createSampleSegments,
     SAMPLE_TEMPLATES,
-    INITIAL_INPUT_HISTORY
+    INITIAL_INPUT_HISTORY,
+    TIME_FORMAT_PRESETS,
+    ROUNDING_OPTIONS
 };
