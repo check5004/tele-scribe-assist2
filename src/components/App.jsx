@@ -12,7 +12,7 @@
  * - クリップボードコピー機能
  */
 function App() {
-    const { useState, useEffect, useCallback } = React;
+    const { useState, useEffect, useCallback, useRef, useMemo } = React;
 
     /**
      * 初期データの取得
@@ -46,6 +46,15 @@ function App() {
         usedVariables: [],
         variableUsage: {}
     });
+    const [unifiedSegments, setUnifiedSegments] = useState([]);
+
+    /**
+     * プレビュー編集制御の状態管理
+     * 循環的な状態更新を防止し、カーソル位置を保持するための制御フラグとref
+     */
+    const [isEditingPreview, setIsEditingPreview] = useState(false);
+    const previewRef = useRef(null);
+    const cursorPositionRef = useRef({ start: 0, end: 0 });
 
     /**
      * カスタムフックの初期化
@@ -70,18 +79,22 @@ function App() {
      * プレビューの自動更新
      * セグメントまたは変数が変更されるたびにプレビューテキストを再生成
      * 変数の置換処理（{{変数名}}パターンを実際の値に置換）を実行
+     * プレビュー編集中は自動更新を停止して循環的な状態更新を防止
      */
     useEffect(() => {
-        let text = segments.map(segment => {
-            let content = segment.content;
-            variables.forEach(variable => {
-                const regex = new RegExp(`{{${variable.name}}}`, 'g');
-                content = content.replace(regex, variable.value || `{{${variable.name}}}`);
-            });
-            return content;
-        }).join('\n');
-        setPreview(text);
-    }, [segments, variables]);
+        // プレビュー編集中は自動更新を停止
+        if (!isEditingPreview) {
+            let text = segments.map(segment => {
+                let content = segment.content;
+                variables.forEach(variable => {
+                    const regex = new RegExp(`{{${variable.name}}}`, 'g');
+                    content = content.replace(regex, variable.value || `{{${variable.name}}}`);
+                });
+                return content;
+            }).join('\n');
+            setPreview(text);
+        }
+    }, [segments, variables, isEditingPreview]);
 
     /**
      * 変数使用状況の自動更新
@@ -136,6 +149,65 @@ function App() {
             return newSegments;
         });
     }, [saveToUndoStack]);
+
+    /**
+     * カーソル位置保存関数
+     * プレビュー編集前にカーソル位置を記録し、後で復元できるようにする
+     */
+    const saveCursorPosition = useCallback(() => {
+        if (previewRef.current) {
+            const textarea = previewRef.current;
+            cursorPositionRef.current = {
+                start: textarea.selectionStart,
+                end: textarea.selectionEnd
+            };
+        }
+    }, []);
+
+    /**
+     * カーソル位置復元関数
+     * 保存されたカーソル位置を復元し、編集中断を防ぐ
+     */
+    const restoreCursorPosition = useCallback(() => {
+        if (previewRef.current) {
+            const textarea = previewRef.current;
+            const { start, end } = cursorPositionRef.current;
+            // DOM更新後に実行するためrequestAnimationFrameを使用
+            requestAnimationFrame(() => {
+                textarea.setSelectionRange(start, end);
+                textarea.focus();
+            });
+        }
+    }, []);
+
+    /**
+     * デバウンス処理されたプレビュー同期関数
+     * 連続入力時の過剰な状態更新を防ぎ、編集完了後に同期を実行
+     */
+    const debouncedPreviewSync = useMemo(
+        () => Helpers.debounce((editedPreview) => {
+            // カーソル位置を保存
+            saveCursorPosition();
+
+            // プレビュー編集からセグメント内容と変数値の両方を同期更新
+            const result = Helpers.updateSegmentsAndVariablesFromPreview(
+                editedPreview,
+                variables,
+                segments
+            );
+
+            // 状態を更新（セグメント内容と変数値）
+            setVariables(result.variables);
+            setSegments(result.segments);
+
+            // プレビュー編集フラグを解除（useEffectによる自動更新を再開）
+            setIsEditingPreview(false);
+
+            // カーソル位置を復元
+            setTimeout(restoreCursorPosition, 0);
+        }, 100),
+        [variables, segments, saveCursorPosition, restoreCursorPosition]
+    );
 
     /**
      * クリップボードコピー機能
@@ -276,15 +348,26 @@ function App() {
                             React.createElement('h2', { className: "text-lg font-semibold" }, 'プレビュー')
                         ),
                         React.createElement('div', { className: "p-4" },
-                            React.createElement('textarea', {
+                        React.createElement('textarea', {
+                                ref: previewRef,
                                 value: preview,
                                 onChange: (e) => {
-                                    const lines = e.target.value.split('\n');
-                                    const newSegments = lines.map((line, i) => ({
-                                        id: segments[i]?.id || Helpers.generateId(),
-                                        content: line
-                                    }));
-                                    setSegments(newSegments);
+                                    // プレビュー編集の新しいフロー：循環更新防止 + カーソル位置保持
+                                    const editedPreview = e.target.value;
+
+                                    if (preview !== editedPreview) {
+                                        // プレビュー編集フラグを設定（useEffectによる自動更新を停止）
+                                        setIsEditingPreview(true);
+
+                                        // 即座にプレビューを更新（ユーザーの入力に対する即座のフィードバック）
+                                        setPreview(editedPreview);
+
+                                        // Undoスタックに保存（デバウンス前に実行）
+                                        saveToUndoStack();
+
+                                        // デバウンス処理された同期関数を呼び出し
+                                        debouncedPreviewSync(editedPreview);
+                                    }
                                 },
                                 className: "w-full h-48 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 scrollbar-thin resize-none",
                                 placeholder: "ここに報告文が表示されます..."
