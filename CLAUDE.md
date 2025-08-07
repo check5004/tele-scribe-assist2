@@ -104,7 +104,6 @@ The application uses React hooks extensively:
 ```
 tele-scribe-assist2/
 ├── index.html                    # Modular version entry point
-├── telescribe-assist.html        # Legacy single-file version
 ├── src/
 │   ├── components/
 │   │   ├── App.jsx              # Main application container
