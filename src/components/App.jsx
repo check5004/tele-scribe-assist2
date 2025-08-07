@@ -5,7 +5,7 @@ function App() {
     // 初期データの取得
     const { loadData, saveData } = Hooks.useLocalStorage();
     const initialData = loadData();
-    
+
     // State管理
     const [variables, setVariables] = useState(
         initialData?.variables || Constants.createSampleVariables()
@@ -28,7 +28,7 @@ function App() {
     const { undoStack, redoStack, saveToUndoStack, undo, redo } = Hooks.useUndoRedo(
         segments, variables, setSegments, setVariables
     );
-    
+
     // ドラッグ&ドロップの初期化
     Hooks.useDragDrop(segments, setSegments, saveToUndoStack);
 
