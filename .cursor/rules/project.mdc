@@ -1,0 +1,85 @@
+---
+alwaysApply: true
+---
+
+# TeleScribe Assist プロジェクトルール
+
+## プロジェクト概要
+TeleScribe Assistは電話応答レポート作成支援のモジュラーReactアプリケーションです。ビルドシステムを使わず、CDN経由でReact 18を使用しています。
+
+## アーキテクチャ
+- **モジュラーReactアプリケーション**
+- React 18 (CDN)、Tailwind CSS、SortableJS使用
+- ビルドシステムなし - 直接ブラウザ実行
+- 2つのデプロイオプション:
+  - モジュラー版: `index.html` + `src/`ディレクトリ
+  - 単一ファイル版: `telescribe-assist.html` (レガシー)
+
+## ファイル構造
+```
+src/
+├── components/     # Reactコンポーネント
+├── hooks/         # カスタムReactフック
+├── services/      # データ永続化・管理
+├── utils/         # ヘルパー関数・日付ユーティリティ
+├── data/          # 定数・サンプルデータ
+└── styles/        # CSSスタイリング
+```
+
+## 必須コーディング規約
+
+### 1. 日本語JSDocコメント
+**最重要**: すべてのコードに包括的な日本語JSDocコメントを必須とします:
+
+- 関数、Reactコンポーネント、カスタムフック、サービスクラス、ユーティリティ関数、定数
+- `/**` JSDoc形式で詳細な日本語説明
+- `@param`、`@returns`タグに日本語説明
+- 複雑なロジック、アルゴリズム、実装詳細の説明
+
+例:
+```javascript
+/**
+ * メインアプリケーションコンポーネント
+ * TeleScribe Assistのルートコンポーネントとして全体の状態管理と画面描画を担当
+ *
+ * 主な機能:
+ * - 変数とセグメントの状態管理
+ * - リアルタイムプレビューの生成
+ * - セッション履歴の管理
+ *
+ * @param {Object} props - コンポーネントのプロパティ
+ * @returns {JSX.Element} メインアプリケーションのJSX
+ */
+```
+
+### 2. React開発パターン
+- **状態管理**: useState、useEffect、useCallback、useMemoを活用
+- **パフォーマンス**: コンポーネントとイベントハンドラーのメモ化、入力のデバウンス(300ms)
+- **データフロー**: ユーザー入力 → 状態更新 → localStorage保存 → リアルタイムプレビュー
+
+### 3. 主要実装詳細
+- **変数補間**: 正規表現パターン `/{{${variable.name}}}/g` を使用
+- **時間処理**: YYYY、MM、DD、HH、mm、ss形式パターンと丸め処理
+- **ドラッグ&ドロップ**: SortableJSで `[data-drag-handle]` 要素、150msアニメーション
+- **データ永続化**: localStorage キー `telescribeAssistData` で自動保存
+- **グローバルオブジェクト**: `Components.App`、`Hooks.useLocalStorage`等として公開
+
+## 状態構造
+- `variables` - 変数オブジェクト配列
+- `segments` - テキストセグメント配列
+- `sessionHistory` - 保存されたレポートセッション
+- `undoStack`/`redoStack` - アンドゥ/リドゥ機能
+- `templates` - セグメント/ブロック用テンプレートデータ
+- `inputHistory` - オートコンプリート用入力履歴
+
+## 開発制約
+- **ビルドシステムなし**: CDN依存関係での直接ブラウザ実行
+- **オフライン対応**: ロード後はオフライン動作必須
+- **日本語文書化**: すべての文書は日本語で記述
+
+## 開発ワークフロー
+- **ローカルサーバー**: `python -m http.server 8000` で `http://localhost:8000/index.html` へアクセス
+- **デバッグ**: ブラウザDevTools使用、localStorage確認、CDNロード確認
+- **ファイル編集**: 常に `src/` ディレクトリ内のモジュラーファイルを編集
+
+必ずこれらのルールに従ってコードの品質とプロジェクトの一貫性を維持してください。

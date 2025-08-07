@@ -1,0 +1,201 @@
+---
+globs: **/*.jsx, src/components/**/*.js, src/hooks/**/*.js
+alwaysApply: false
+---
+# React開発パターン
+
+## 状態管理パターン
+
+### Reactフックの活用
+- `useState`: コンポーネント状態管理
+- `useEffect`: 副作用とデータ永続化
+- `useCallback`: メモ化されたイベントハンドラー
+- `useMemo`: パフォーマンス最適化
+- `memo`: コンポーネントのメモ化
+
+### パフォーマンス最適化
+必須最適化パターン:
+```javascript
+/**
+ * メモ化されたコンポーネント例
+ */
+const SegmentItem = memo(({ text, index, onUpdate, onDelete }) => {
+  // useCallbackでイベントハンドラーをメモ化
+  const handleUpdate = useCallback((newText) => {
+    onUpdate(index, newText);
+  }, [index, onUpdate]);
+
+  const handleDelete = useCallback(() => {
+    onDelete(index);
+  }, [index, onDelete]);
+
+  return (
+    // JSX
+  );
+});
+```
+
+### デバウンス入力パターン
+テキスト入力は300msデバウンスを実装:
+```javascript
+/**
+ * デバウンス付き入力更新フック
+ */
+const useDebouncedUpdate = (callback, delay = 300) => {
+  const timeoutRef = useRef(null);
+
+  return useCallback((value) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      callback(value);
+    }, delay);
+  }, [callback, delay]);
+};
+```
+
+## データフローパターン
+
+### 標準データフロー
+1. ユーザー入力 → 状態更新 → localStorage保存
+2. 変数変更 → リアルタイムプレビュー更新
+3. セグメント変更 → デバウンス状態更新 → プレビュー再描画
+4. プレビュー編集 → セグメント配列再構築
+
+### 状態更新パターン
+```javascript
+/**
+ * 状態更新とlocalStorage保存の統合パターン
+ */
+const usePersistedState = (key, initialValue) => {
+  const [state, setState] = useState(initialValue);
+
+  const updateState = useCallback((newState) => {
+    setState(newState);
+    // 即座にlocalStorageに保存
+    localStorage.setItem(key, JSON.stringify(newState));
+  }, [key]);
+
+  return [state, updateState];
+};
+```
+
+## コンポーネント設計パターン
+
+### プロパティ検証
+```javascript
+/**
+ * PropTypesまたはTypeScriptの型定義（推奨）
+ */
+const VariableInput = ({ variable, onUpdate, inputHistory }) => {
+  // 実装
+};
+
+// プロパティの型チェック
+VariableInput.propTypes = {
+  variable: PropTypes.shape({
+    name: PropTypes.string.required,
+    type: PropTypes.string.required,
+    value: PropTypes.any
+  }).isRequired,
+  onUpdate: PropTypes.func.isRequired,
+  inputHistory: PropTypes.array
+};
+```
+
+### カスタムフック設計
+```javascript
+/**
+ * 再利用可能なカスタムフックパターン
+ */
+const useUndoRedo = (initialState, maxHistory = 50) => {
+  const [undoStack, setUndoStack] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
+  const [currentState, setCurrentState] = useState(initialState);
+
+  const execute = useCallback((newState) => {
+    setUndoStack(prev => [...prev.slice(-maxHistory + 1), currentState]);
+    setRedoStack([]);
+    setCurrentState(newState);
+  }, [currentState, maxHistory]);
+
+  // undo, redo関数を返す
+  return { currentState, execute, undo, redo, canUndo, canRedo };
+};
+```
+
+## 特殊実装パターン
+
+### 変数補間システム
+```javascript
+/**
+ * テンプレート変数の置換処理
+ */
+const interpolateVariables = (text, variables) => {
+  let result = text;
+  variables.forEach(variable => {
+    const regex = new RegExp(`{{${variable.name}}}`, 'g');
+    result = result.replace(regex, formatVariable(variable));
+  });
+  return result;
+};
+```
+
+### ドラッグ&ドロップ統合
+```javascript
+/**
+ * SortableJS統合パターン
+ */
+const useSortable = (containerRef, items, onSort) => {
+  useEffect(() => {
+    if (containerRef.current) {
+      const sortable = Sortable.create(containerRef.current, {
+        handle: '[data-drag-handle]',
+        animation: 150,
+        ghostClass: 'opacity-50',
+        dragClass: 'rotate-2',
+        onEnd: (evt) => {
+          const newItems = [...items];
+          const [moved] = newItems.splice(evt.oldIndex, 1);
+          newItems.splice(evt.newIndex, 0, moved);
+          onSort(newItems);
+        }
+      });
+      return () => sortable.destroy();
+    }
+  }, [items, onSort]);
+};
+```
+
+## エラーハンドリングパターン
+
+### 境界エラー処理
+```javascript
+/**
+ * エラー境界コンポーネント
+ */
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('コンポーネントエラー:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <div>エラーが発生しました。ページを再読み込みしてください。</div>;
+    }
+    return this.props.children;
+  }
+}
+```
+
+これらのパターンを一貫して適用し、再利用可能で保守しやすいReactコンポーネントを構築してください。
