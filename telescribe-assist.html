@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeleScribe Assist - 電話応対報告文作成補助サイト</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        .gradient-title {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .gradient-accent {
+            background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #8b5cf6 100%);
+        }
+        .sortable-ghost {
+            opacity: 0.4;
+            background: rgba(99, 102, 241, 0.1);
+        }
+        .sortable-drag {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback, useMemo, memo } = React;
+
+        // ユーティリティ関数
+        const formatDateTime = (date, format, rounding = null) => {
+            let d = new Date(date);
+
+            // 丸め処理
+            if (rounding && rounding.enabled) {
+                const minutes = d.getMinutes();
+                const unit = parseInt(rounding.unit);
+                let rounded;
+
+                if (rounding.method === 'floor') {
+                    rounded = Math.floor(minutes / unit) * unit;
+                } else if (rounding.method === 'ceil') {
+                    rounded = Math.ceil(minutes / unit) * unit;
+                } else { // round
+                    rounded = Math.round(minutes / unit) * unit;
+                }
+
+                d.setMinutes(rounded);
+                d.setSeconds(0);
+            }
+
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            const seconds = String(d.getSeconds()).padStart(2, '0');
+
+            return format
+                .replace('YYYY', year)
+                .replace('MM', month)
+                .replace('DD', day)
+                .replace('HH', hours)
+                .replace('mm', minutes)
+                .replace('ss', seconds);
+        };
+
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+
+        // 文節コンポーネント（メモ化）
+        const SegmentItem = memo(({ segment, index, onUpdate, onDelete, onAdd }) => {
+            const dragHandleRef = useRef(null);
+            const [localValue, setLocalValue] = useState(segment.content);
+
+            // ローカルの値が変更されたときに親に伝える（デバウンス）
+            useEffect(() => {
+                const timer = setTimeout(() => {
+                    if (localValue !== segment.content) {
+                        onUpdate(index, localValue);
+                    }
+                }, 300);
+                return () => clearTimeout(timer);
+            }, [localValue]);
+
+            // 親からの値の変更を反映
+            useEffect(() => {
+                setLocalValue(segment.content);
+            }, [segment.content]);
+
+            return (
+                <div className="flex items-center gap-2 p-2 bg-gray-800 rounded-lg group">
+                    <div
+                        ref={dragHandleRef}
+                        className="cursor-move p-1 hover:bg-gray-700 rounded"
+                        data-drag-handle
+                    >
+                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </div>
+                    <input
+                        type="text"
+                        value={localValue}
+                        onChange={(e) => setLocalValue(e.target.value)}
+                        className="flex-1 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="文節を入力..."
+                    />
+                    <button
+                        onClick={() => onDelete(index)}
+                        className="p-2 text-red-400 hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                    <button
+                        onClick={() => onAdd(index)}
+                        className="p-2 text-green-400 hover:bg-green-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                    </button>
+                </div>
+            );
+        });
+
+        // メインアプリケーションコンポーネント
+        function App() {
+            // サンプルデータ
+            const sampleVariables = [
+                {
+                    id: generateId(),
+                    name: '着信時刻',
+                    type: 'time',
+                    value: formatDateTime(new Date(), 'HH:mm', {
+                        enabled: true,
+                        unit: '5',
+                        method: 'floor'
+                    }),
+                    format: 'HH:mm',
+                    rounding: {
+                        enabled: true,
+                        unit: '5',
+                        method: 'floor'
+                    }
+                },
+                {
+                    id: generateId(),
+                    name: '相手先名',
+                    type: 'text',
+                    value: '山田様'
+                },
+                {
+                    id: generateId(),
+                    name: '会社名',
+                    type: 'text',
+                    value: '株式会社○○'
+                },
+                {
+                    id: generateId(),
+                    name: '用件',
+                    type: 'text',
+                    value: '見積もりの件'
+                }
+            ];
+
+            const sampleSegments = [
+                { id: generateId(), content: '{{着信時刻}}に{{会社名}}の{{相手先名}}より着信がありました。' },
+                { id: generateId(), content: '' },
+                { id: generateId(), content: '【用件】' },
+                { id: generateId(), content: '{{用件}}についてのお問い合わせ' },
+                { id: generateId(), content: '' },
+                { id: generateId(), content: '【対応】' },
+                { id: generateId(), content: '資料を確認の上、折り返しご連絡する旨をお伝えしました。' },
+                { id: generateId(), content: '明日の午前中までにご連絡予定です。' }
+            ];
+
+            const sampleTemplates = {
+                segment: [
+                    '{{着信時刻}}に{{会社名}}の{{相手先名}}より着信がありました。',
+                    '【用件】',
+                    '【対応】',
+                    '資料を確認の上、折り返しご連絡する旨をお伝えしました。',
+                    '担当者不在のため、後ほど折り返しのご連絡を差し上げる旨お伝えしました。',
+                    '明日の午前中までにご連絡予定です。',
+                    'ご要望を承り、担当部署へ申し送りいたしました。'
+                ],
+                block: [
+                    {
+                        name: '基本報告テンプレート',
+                        segments: [
+                            '{{着信時刻}}に{{会社名}}の{{相手先名}}より着信がありました。',
+                            '',
+                            '【用件】',
+                            '{{用件}}',
+                            '',
+                            '【対応】',
+                            '担当者へ申し送りました。'
+                        ]
+                    }
+                ]
+            };
+
+            // State管理
+            const [variables, setVariables] = useState(sampleVariables);
+            const [segments, setSegments] = useState(sampleSegments);
+            const [preview, setPreview] = useState('');
+            const [sessionHistory, setSessionHistory] = useState([]);
+            const [undoStack, setUndoStack] = useState([]);
+            const [redoStack, setRedoStack] = useState([]);
+            const [sidebarOpen, setSidebarOpen] = useState(false);
+            const [showVariableModal, setShowVariableModal] = useState(false);
+            const [templates, setTemplates] = useState(sampleTemplates);
+            const [inputHistory, setInputHistory] = useState({
+                variables: {},
+                segments: ['お世話になっております。', '以上、よろしくお願いいたします。']
+            });
+
+            // LocalStorage からデータを読み込み（初回はサンプルデータを使用）
+            useEffect(() => {
+                const loadedData = localStorage.getItem('telescribeAssistData');
+                if (loadedData) {
+                    try {
+                        const data = JSON.parse(loadedData);
+                        if (data.variables) setVariables(data.variables);
+                        if (data.segments) setSegments(data.segments);
+                        if (data.sessionHistory) setSessionHistory(data.sessionHistory);
+                        if (data.templates) setTemplates(data.templates);
+                        if (data.inputHistory) setInputHistory(data.inputHistory);
+                    } catch (e) {
+                        console.error('Failed to load data:', e);
+                    }
+                } else {
+                    // 初回アクセス時はサンプルデータが表示されている（すでにStateに設定済み）
+                    console.log('初回アクセス: サンプルデータを表示');
+                }
+            }, []);
+
+            // LocalStorage への保存
+            useEffect(() => {
+                const dataToSave = {
+                    variables,
+                    segments,
+                    sessionHistory,
+                    templates,
+                    inputHistory
+                };
+                localStorage.setItem('telescribeAssistData', JSON.stringify(dataToSave));
+            }, [variables, segments, sessionHistory, templates, inputHistory]);
+
+            // プレビュー更新
+            useEffect(() => {
+                let text = segments.map(segment => {
+                    let content = segment.content;
+                    variables.forEach(variable => {
+                        const regex = new RegExp(`{{${variable.name}}}`, 'g');
+                        content = content.replace(regex, variable.value || `{{${variable.name}}}`);
+                    });
+                    return content;
+                }).join('\n');
+                setPreview(text);
+            }, [segments, variables]);
+
+            // Undo/Redo 機能
+            const saveToUndoStack = useCallback(() => {
+                setUndoStack(prev => [...prev.slice(-49), { segments: [...segments], variables: [...variables] }]);
+                setRedoStack([]);
+            }, [segments, variables]);
+
+            const undo = useCallback(() => {
+                if (undoStack.length > 0) {
+                    const last = undoStack[undoStack.length - 1];
+                    setRedoStack(prev => [...prev, { segments, variables }]);
+                    setSegments(last.segments);
+                    setVariables(last.variables);
+                    setUndoStack(prev => prev.slice(0, -1));
+                }
+            }, [undoStack, segments, variables]);
+
+            const redo = useCallback(() => {
+                if (redoStack.length > 0) {
+                    const last = redoStack[redoStack.length - 1];
+                    setUndoStack(prev => [...prev, { segments, variables }]);
+                    setSegments(last.segments);
+                    setVariables(last.variables);
+                    setRedoStack(prev => prev.slice(0, -1));
+                }
+            }, [redoStack, segments, variables]);
+
+            // 変数追加モーダルコンポーネント
+            const VariableModal = () => {
+                const [varName, setVarName] = useState('');
+                const [varType, setVarType] = useState('text');
+
+                const handleAdd = () => {
+                    const newVar = {
+                        id: generateId(),
+                        name: varName,
+                        type: varType,
+                        value: varType === 'time' ? formatDateTime(new Date(), 'HH:mm') : '',
+                        ...(varType === 'time' && {
+                            format: 'HH:mm',
+                            rounding: { enabled: false, unit: '5', method: 'floor' }
+                        })
+                    };
+                    setVariables([...variables, newVar]);
+                    setShowVariableModal(false);
+                    saveToUndoStack();
+                };
+
+                return (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-gray-800 rounded-lg p-6 w-96">
+                            <h3 className="text-xl font-semibold mb-4">変数を追加</h3>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">変数名</label>
+                                <input
+                                    type="text"
+                                    value={varName}
+                                    onChange={(e) => setVarName(e.target.value)}
+                                    className="w-full px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="例: 相手先名"
+                                />
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium mb-2">タイプ</label>
+                                <select
+                                    value={varType}
+                                    onChange={(e) => setVarType(e.target.value)}
+                                    className="w-full px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="text">テキスト</option>
+                                    <option value="time">時刻</option>
+                                </select>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <button
+                                    onClick={() => setShowVariableModal(false)}
+                                    className="px-4 py-2 bg-gray-700 rounded-md hover:bg-gray-600 transition-colors"
+                                >
+                                    キャンセル
+                                </button>
+                                <button
+                                    onClick={handleAdd}
+                                    disabled={!varName}
+                                    className="px-4 py-2 bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                                >
+                                    追加
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            // 変数入力コンポーネント
+            const VariableInput = ({ variable, onChange }) => {
+                if (variable.type === 'time') {
+                    const parts = variable.format.split(/[^YMDHms]+/);
+                    const separators = variable.format.match(/[^YMDHms]+/g) || [];
+
+                    return (
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-1">
+                                {parts.map((part, i) => (
+                                    <React.Fragment key={i}>
+                                        <input
+                                            type="text"
+                                            value={variable.value?.split(/[^0-9]+/)[i] || ''}
+                                            onChange={(e) => {
+                                                const values = variable.value?.split(/[^0-9]+/) || [];
+                                                values[i] = e.target.value;
+                                                const newValue = values.reduce((acc, val, idx) => {
+                                                    return acc + val + (separators[idx] || '');
+                                                }, '');
+                                                onChange({ ...variable, value: newValue });
+                                            }}
+                                            className="w-16 px-2 py-1 bg-gray-700 rounded text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            placeholder={part}
+                                        />
+                                        {i < separators.length && <span className="text-gray-400">{separators[i]}</span>}
+                                    </React.Fragment>
+                                ))}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                                プレビュー: {formatDateTime(new Date(), variable.format, variable.rounding)}
+                            </div>
+                        </div>
+                    );
+                }
+
+                return (
+                    <input
+                        type="text"
+                        value={variable.value}
+                        onChange={(e) => onChange({ ...variable, value: e.target.value })}
+                        className="w-full px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder={`${variable.name}を入力`}
+                    />
+                );
+            };
+
+            // セグメント操作関数（メモ化）
+            const updateSegment = useCallback((index, content) => {
+                setSegments(prev => {
+                    const newSegments = [...prev];
+                    newSegments[index].content = content;
+                    return newSegments;
+                });
+            }, []);
+
+            const deleteSegment = useCallback((index) => {
+                setSegments(prev => {
+                    if (prev.length > 1) {
+                        saveToUndoStack();
+                        return prev.filter((_, i) => i !== index);
+                    }
+                    return prev;
+                });
+            }, [saveToUndoStack]);
+
+            const addSegment = useCallback((index) => {
+                setSegments(prev => {
+                    const newSegments = [...prev];
+                    newSegments.splice(index + 1, 0, { id: generateId(), content: '' });
+                    saveToUndoStack();
+                    return newSegments;
+                });
+            }, [saveToUndoStack]);
+
+            // コピー機能
+            const copyToClipboard = (format = 'plain') => {
+                let textToCopy = preview;
+
+                if (format === 'markdown') {
+                    // Markdown形式への変換（将来の拡張用）
+                    textToCopy = preview;
+                } else if (format === 'html') {
+                    textToCopy = preview.split('\n').join('<br>');
+                }
+
+                navigator.clipboard.writeText(textToCopy);
+
+                // セッション履歴に追加
+                const newSession = {
+                    id: generateId(),
+                    timestamp: new Date().toISOString(),
+                    content: preview,
+                    variables: [...variables],
+                    segments: [...segments]
+                };
+                setSessionHistory([newSession, ...sessionHistory].slice(0, 50));
+            };
+
+            // エクスポート機能
+            const exportData = () => {
+                const data = {
+                    variables,
+                    segments,
+                    templates,
+                    inputHistory,
+                    exportDate: new Date().toISOString()
+                };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `telescribe-assist-backup-${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            };
+
+            // インポート機能
+            const importData = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        if (data.variables) setVariables(data.variables);
+                        if (data.segments) setSegments(data.segments);
+                        if (data.templates) setTemplates(data.templates);
+                        if (data.inputHistory) setInputHistory(data.inputHistory);
+                        alert('データのインポートが完了しました');
+                    } catch (error) {
+                        alert('データのインポートに失敗しました: ' + error.message);
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            // ドラッグ&ドロップ初期化
+            useEffect(() => {
+                const container = document.getElementById('segments-container');
+                if (container) {
+                    const sortable = Sortable.create(container, {
+                        animation: 150,
+                        handle: '[data-drag-handle]',
+                        ghostClass: 'sortable-ghost',
+                        dragClass: 'sortable-drag',
+                        onEnd: (evt) => {
+                            const newSegments = [...segments];
+                            const [movedItem] = newSegments.splice(evt.oldIndex, 1);
+                            newSegments.splice(evt.newIndex, 0, movedItem);
+                            setSegments(newSegments);
+                            saveToUndoStack();
+                        }
+                    });
+                    return () => sortable.destroy();
+                }
+            }, [segments]);
+
+            return (
+                <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col">
+                    {/* ヘッダー */}
+                    <header className="gradient-title px-6 py-4 shadow-lg">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={() => setSidebarOpen(!sidebarOpen)}
+                                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                                    </svg>
+                                </button>
+                                <h1 className="text-2xl font-bold">TeleScribe Assist</h1>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={undo}
+                                    disabled={undoStack.length === 0}
+                                    className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
+                                    title="元に戻す"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                    </svg>
+                                </button>
+                                <button
+                                    onClick={redo}
+                                    disabled={redoStack.length === 0}
+                                    className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
+                                    title="やり直す"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
+                                    </svg>
+                                </button>
+                                <button
+                                    onClick={exportData}
+                                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                                    title="エクスポート"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                </button>
+                                <label className="p-2 hover:bg-white/10 rounded-lg transition-colors cursor-pointer" title="インポート">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                    </svg>
+                                    <input type="file" accept=".json" onChange={importData} className="hidden" />
+                                </label>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div className="flex flex-1 overflow-hidden">
+                        {/* サイドバー */}
+                        <div className={`${sidebarOpen ? 'w-64' : 'w-0'} transition-all duration-300 bg-gray-800 overflow-hidden`}>
+                            <div className="p-4">
+                                <h2 className="text-lg font-semibold mb-4">セッション履歴</h2>
+                                <button
+                                    onClick={() => {
+                                        setSegments([{ id: generateId(), content: '' }]);
+                                        setVariables([{
+                                            id: generateId(),
+                                            name: '着信時刻',
+                                            type: 'time',
+                                            value: formatDateTime(new Date(), 'HH:mm', {
+                                                enabled: true,
+                                                unit: '5',
+                                                method: 'floor'
+                                            }),
+                                            format: 'HH:mm',
+                                            rounding: {
+                                                enabled: true,
+                                                unit: '5',
+                                                method: 'floor'
+                                            }
+                                        }]);
+                                    }}
+                                    className="w-full px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors mb-4"
+                                >
+                                    新規作成
+                                </button>
+                                <div className="space-y-2 max-h-96 overflow-y-auto scrollbar-thin">
+                                    {sessionHistory.map((session) => (
+                                        <button
+                                            key={session.id}
+                                            onClick={() => {
+                                                setSegments(session.segments);
+                                                setVariables(session.variables);
+                                            }}
+                                            className="w-full text-left p-2 bg-gray-700 rounded hover:bg-gray-600 transition-colors"
+                                        >
+                                            <div className="text-sm truncate">{session.content.split('\n')[0] || '(空の報告)'}</div>
+                                            <div className="text-xs text-gray-400">
+                                                {new Date(session.timestamp).toLocaleString('ja-JP')}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* メインコンテンツ */}
+                        <div className="flex-1 flex gap-4 p-4 overflow-hidden">
+                            {/* 左パネル */}
+                            <div className="flex-1 flex flex-col gap-4 min-w-0">
+                                {/* プレビューセクション */}
+                                <div className="bg-gray-800 rounded-lg shadow-xl overflow-hidden">
+                                    <div className="gradient-accent p-3">
+                                        <h2 className="text-lg font-semibold">プレビュー</h2>
+                                    </div>
+                                    <div className="p-4">
+                                        <textarea
+                                            value={preview}
+                                            onChange={(e) => {
+                                                const lines = e.target.value.split('\n');
+                                                const newSegments = lines.map((line, i) => ({
+                                                    id: segments[i]?.id || generateId(),
+                                                    content: line
+                                                }));
+                                                setSegments(newSegments);
+                                            }}
+                                            className="w-full h-48 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 scrollbar-thin resize-none"
+                                            placeholder="ここに報告文が表示されます..."
+                                        />
+                                        <div className="flex gap-2 mt-3">
+                                            <button
+                                                onClick={() => copyToClipboard('plain')}
+                                                className="flex-1 px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                                            >
+                                                全体コピー
+                                            </button>
+                                            <select
+                                                onChange={(e) => copyToClipboard(e.target.value)}
+                                                className="px-3 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            >
+                                                <option value="">形式選択</option>
+                                                <option value="plain">プレーンテキスト</option>
+                                                <option value="markdown">Markdown</option>
+                                                <option value="html">HTML</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 基本情報セクション */}
+                                <div className="bg-gray-800 rounded-lg shadow-xl overflow-hidden">
+                                    <div className="gradient-accent p-3">
+                                        <h2 className="text-lg font-semibold">基本情報（変数）</h2>
+                                    </div>
+                                    <div className="p-4">
+                                        <div className="space-y-3 max-h-64 overflow-y-auto scrollbar-thin">
+                                            {variables.map((variable, index) => (
+                                                <div key={variable.id} className="space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <label className="text-sm font-medium">{variable.name}</label>
+                                                        <button
+                                                            onClick={() => {
+                                                                setVariables(variables.filter(v => v.id !== variable.id));
+                                                                saveToUndoStack();
+                                                            }}
+                                                            className="text-red-400 hover:text-red-300"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                    <VariableInput
+                                                        variable={variable}
+                                                        onChange={(updated) => {
+                                                            const newVariables = [...variables];
+                                                            newVariables[index] = updated;
+                                                            setVariables(newVariables);
+                                                        }}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <button
+                                            onClick={() => setShowVariableModal(true)}
+                                            className="w-full mt-3 px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors flex items-center justify-center gap-2"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                            </svg>
+                                            変数を追加
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 右パネル */}
+                            <div className="flex-1 bg-gray-800 rounded-lg shadow-xl overflow-hidden">
+                                <div className="gradient-accent p-3">
+                                    <h2 className="text-lg font-semibold">報告文の組み立て（文節）</h2>
+                                </div>
+                                <div className="p-4">
+                                    <div id="segments-container" className="space-y-2 max-h-[600px] overflow-y-auto scrollbar-thin">
+                                        {segments.map((segment, index) => (
+                                            <SegmentItem
+                                                key={segment.id}
+                                                segment={segment}
+                                                index={index}
+                                                onUpdate={updateSegment}
+                                                onDelete={deleteSegment}
+                                                onAdd={addSegment}
+                                            />
+                                        ))}
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setSegments([...segments, { id: generateId(), content: '' }]);
+                                            saveToUndoStack();
+                                        }}
+                                        className="w-full mt-3 px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                        </svg>
+                                        文節を追加
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* モーダル */}
+                    {showVariableModal && <VariableModal />}
+                </div>
+            );
+        }
+
+        // アプリケーションをレンダリング
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeleScribe Assist - 電話応対報告文作成補助サイト</title>
+    
+    <!-- External Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="src/styles/index.css">
+</head>
+<body class="bg-gray-900 text-gray-100">
+    <div id="root"></div>
+
+    <!-- Utility Scripts -->
+    <script src="src/utils/helpers.js"></script>
+    <script src="src/utils/dateUtils.js"></script>
+    
+    <!-- Data and Constants -->
+    <script src="src/data/constants.js"></script>
+    
+    <!-- Services -->
+    <script src="src/services/dataService.js"></script>
+    
+    <!-- Hooks -->
+    <script src="src/hooks/useLocalStorage.js"></script>
+    <script src="src/hooks/useUndoRedo.js"></script>
+    <script src="src/hooks/useDragDrop.js"></script>
+    
+    <!-- Components -->
+    <script type="text/babel" src="src/components/VariableInput.jsx"></script>
+    <script type="text/babel" src="src/components/SegmentItem.jsx"></script>
+    <script type="text/babel" src="src/components/VariableModal.jsx"></script>
+    <script type="text/babel" src="src/components/App.jsx"></script>
+    
+    <!-- App Initialization -->
+    <script type="text/babel">
+        ReactDOM.render(React.createElement(Components.App), document.getElementById('root'));
+    </script>
+</body>
+</html>
