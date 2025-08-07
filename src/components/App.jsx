@@ -298,7 +298,7 @@ function App() {
                             React.createElement('h2', { className: "text-lg font-semibold" }, '基本情報（変数）')
                         ),
                         React.createElement('div', { className: "p-4" },
-                            React.createElement('div', { className: "space-y-3 max-h-64 overflow-y-auto scrollbar-thin" },
+                            React.createElement('div', { className: "space-y-3 max-h-64 overflow-y-auto scrollbar-thin px-2" },
                                 variables.map((variable, index) =>
                                     React.createElement('div', { key: variable.id, className: "space-y-2" },
                                         React.createElement('div', { className: "flex items-center justify-between" },
