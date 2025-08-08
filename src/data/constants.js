@@ -19,6 +19,7 @@ const createSampleVariables = () => [
             unit: '5',
             method: 'floor'
         }),
+        formatMode: 'preset',
         format: 'HH:mm',
         rounding: {
             enabled: true,

@@ -21,11 +21,30 @@ const TimeVariableSettingsModal = ({ variable, onChange, isOpen, onClose }) => {
      * 新しいフォーマットに応じて値を再設定し、変更を親に通知
      * @param {string} newFormat - 新しいフォーマット文字列
      */
-    const handleFormatChange = React.useCallback((newFormat) => {
+    const handleFormatChange = React.useCallback((newValue) => {
+        /**
+         * セレクト変更時の分岐
+         * - 'custom' が選択された場合はカスタムモードへ移行し、セレクトの値は常に 'custom' を維持
+         * - プリセット選択時はプリセットモードとして format を更新
+         */
+        if (newValue === 'custom') {
+            const nextCustom = variable.customFormat || variable.format || 'HH:mm';
+            const newVariable = {
+                ...variable,
+                formatMode: 'custom',
+                customFormat: nextCustom,
+                format: nextCustom,
+                value: DateUtils.formatDateTime(new Date(), nextCustom, variable.rounding)
+            };
+            onChange(newVariable);
+            return;
+        }
+
         const newVariable = {
             ...variable,
-            format: newFormat,
-            value: DateUtils.formatDateTime(new Date(), newFormat, variable.rounding)
+            formatMode: 'preset',
+            format: newValue,
+            value: DateUtils.formatDateTime(new Date(), newValue, variable.rounding)
         };
         onChange(newVariable);
     }, [variable, onChange]);
@@ -53,6 +72,16 @@ const TimeVariableSettingsModal = ({ variable, onChange, isOpen, onClose }) => {
     if (!isOpen) {
         return null;
     }
+
+    /**
+     * カスタムモード判定
+     * - formatMode が 'custom' の場合
+     * - または format がプリセット一覧に存在しない場合（後方互換: 旧データ）
+     */
+    const presetValues = (Constants.TIME_FORMAT_PRESETS || []).map(p => p.value);
+    const isCustomMode = (variable.formatMode === 'custom') || (
+        typeof variable.format === 'string' && !presetValues.includes(variable.format)
+    );
 
     return React.createElement('div', {
         className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
@@ -85,7 +114,7 @@ const TimeVariableSettingsModal = ({ variable, onChange, isOpen, onClose }) => {
                 React.createElement('div', { className: "space-y-2" },
                     React.createElement('label', { className: "block text-sm font-medium text-gray-300" }, 'フォーマット'),
                     React.createElement('select', {
-                        value: variable.format || 'HH:mm',
+                        value: isCustomMode ? 'custom' : (variable.format || 'HH:mm'),
                         onChange: (e) => handleFormatChange(e.target.value),
                         className: "w-full px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
                     },
@@ -97,7 +126,7 @@ const TimeVariableSettingsModal = ({ variable, onChange, isOpen, onClose }) => {
                 ),
 
                 // カスタムフォーマット入力（カスタムが選択された場合のみ表示）
-                variable.format === 'custom' && React.createElement('div', { className: "space-y-2" },
+                isCustomMode && React.createElement('div', { className: "space-y-2" },
                     React.createElement('label', { className: "block text-sm font-medium text-gray-300" }, 'カスタムフォーマット'),
                     React.createElement('input', {
                         type: "text",
@@ -107,6 +136,7 @@ const TimeVariableSettingsModal = ({ variable, onChange, isOpen, onClose }) => {
                             const newVariable = {
                                 ...variable,
                                 customFormat: customFormat,
+                                formatMode: 'custom',
                                 format: customFormat,
                                 value: DateUtils.formatDateTime(new Date(), customFormat, variable.rounding)
                             };

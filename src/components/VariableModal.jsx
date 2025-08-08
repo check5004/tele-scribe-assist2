@@ -32,6 +32,7 @@ const VariableModal = ({ variables, setVariables, setShowVariableModal, saveToUn
             value: varType === 'time' ? DateUtils.formatDateTime(new Date(), 'HH:mm') : '',
             // 時刻タイプの場合はフォーマットと丸め設定を追加
             ...(varType === 'time' && {
+                formatMode: 'preset',
                 format: 'HH:mm',
                 rounding: { enabled: false, unit: '5', method: 'floor' }
             })
