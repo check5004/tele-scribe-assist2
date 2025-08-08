@@ -50,12 +50,34 @@ const TimeInput = React.memo(({ variable, onChange }) => {
             const now = new Date();
             let targetDate = new Date(now);
 
-            // 簡易的な時刻パース（HH:mm形式を想定）
-            const timeMatch = currentValue.match(/(\d{1,2}):(\d{2})/);
-            if (timeMatch) {
-                const hours = parseInt(timeMatch[1], 10);
-                const minutes = parseInt(timeMatch[2], 10);
-                targetDate.setHours(hours, minutes, 0, 0);
+            // フォーマットに基づいて HH と mm の位置を特定し、対応する数値を抽出
+            const formatTokens = (variable.format || '').split(/[^YMDHms]+/).filter(Boolean);
+            const numericGroups = currentValue.match(/\d+/g) || [];
+            const hoursIndex = formatTokens.findIndex((t) => t === 'HH');
+            const minutesIndex = formatTokens.findIndex((t) => t === 'mm');
+
+            let parsed = false;
+            if (hoursIndex !== -1 && minutesIndex !== -1) {
+                const hoursStr = numericGroups[hoursIndex] ?? '';
+                const minutesStr = numericGroups[minutesIndex] ?? '';
+                if (hoursStr && minutesStr) {
+                    const hours = parseInt(hoursStr, 10);
+                    const minutes = parseInt(minutesStr, 10);
+                    if (!Number.isNaN(hours) && !Number.isNaN(minutes)) {
+                        targetDate.setHours(hours, minutes, 0, 0);
+                        parsed = true;
+                    }
+                }
+            }
+
+            // フォールバック: 末尾の2つの数値グループを時:分と見なす
+            if (!parsed && numericGroups.length >= 2) {
+                const [hoursStr, minutesStr] = numericGroups.slice(-2);
+                const hours = parseInt(hoursStr, 10);
+                const minutes = parseInt(minutesStr, 10);
+                if (!Number.isNaN(hours) && !Number.isNaN(minutes)) {
+                    targetDate.setHours(hours, minutes, 0, 0);
+                }
             }
 
             // 調整単位分だけ調整
@@ -103,7 +125,8 @@ const TimeInput = React.memo(({ variable, onChange }) => {
     }, [onChange]);
 
     // フォーマットをパーツと区切り文字に分割
-    const parts = variable.format.split(/[^YMDHms]+/);
+    // 末尾がトークン以外（例: "分"）で終わると空文字が生成されるため除外
+    const parts = variable.format.split(/[^YMDHms]+/).filter(Boolean);
     const separators = variable.format.match(/[^YMDHms]+/g) || [];
 
     return React.createElement('div', { className: "space-y-3" },
