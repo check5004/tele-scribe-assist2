@@ -39,3 +39,70 @@ body {
 .sortable-drag {
     opacity: 0.9;
 }
+
+/* ==========================
+   TeleScribe Assist: 変数ハイライト用スタイル
+   - 入力やプレビューの文字入力を阻害せず、視覚的に {{...}} を強調表示
+   ========================== */
+
+/**
+ * 変数トークンの視覚表現
+ * - 背景色と枠線で {{...}} を強調
+ */
+.tsa-var-token {
+    background-color: rgba(250, 246, 59, 0.15); /* text-blue-500 の淡い背景 */
+    outline: 1px solid rgba(250, 230, 59, 0.45); /* borderの代わりにoutlineでレイアウト非影響 */
+    outline-offset: -1px; /* ボックス境界上に描画 */
+    border-radius: 0.25rem; /* rounded */
+    padding: 0.15rem 0; /* x-0.5 相当 */
+}
+
+/**
+ * オーバーレイコンテナ
+ * - 入力上に重ねるハイライトレイヤー
+ */
+.tsa-overlay-container {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+/**
+ * オーバーレイコンテンツ（単行入力用）
+ * - インプットのスクロールに追従させる
+ */
+.tsa-overlay-content {
+    white-space: pre; /* 改行なし、スペース保持 */
+    color: #e5e7eb;   /* text-gray-200 相当 */
+    font: inherit;
+    letter-spacing: inherit;
+}
+
+/**
+ * オーバーレイコンテンツ（複数行テキスト用）
+ * - テキストエリアの折り返しに一致
+ */
+.tsa-overlay-content.multiline {
+    white-space: pre-wrap;      /* 改行・スペース維持 */
+    overflow-wrap: break-word;  /* 長い単語の折返し */
+    word-break: break-word;     /* 非標準だが多くのブラウザで有効 */
+}
+
+/**
+ * 入力テキストを透明化し、キャレットのみ表示
+ * - 背景は透過、文字はオーバーレイに描画
+ */
+.tsa-overlay-input {
+    color: transparent !important;
+    background: transparent !important;
+    caret-color: #ffffff; /* 白いキャレット */
+}
+
+/**
+ * プレースホルダーは可視のままにする
+ */
+.tsa-overlay-input::placeholder {
+    color: #9ca3af; /* text-gray-400 */
+    opacity: 1;
+}

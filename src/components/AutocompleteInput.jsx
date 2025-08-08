@@ -1,14 +1,11 @@
 /**
- * オートコンプリート入力コンポーネント
- * 文節編集での候補表示・選択機能を提供する統合コンポーネント
+ * オートコンプリート入力コンポーネント（変数ハイライト対応）
+ * 文節編集での候補表示・選択機能を提供しつつ、`{{...}}` 形式の変数を視覚的にハイライト表示する。
  *
- * 主な機能:
- * - テンプレートと入力履歴の候補表示
- * - {{ 入力時の変数候補表示
- * - 前方一致によるフィルタリング
- * - キーボードナビゲーション（↑↓、Enter、Escape）
- * - マウスクリック選択
- * - デバウンス付きの値変更通知
+ * 実装方針:
+ * - 入力は通常の <input type="text"> を維持し、キャレットやキーバインドは従来どおり
+ * - 入力に重ねたオーバーレイレイヤーで同一テキストを描画し、`{{...}}` を枠・背景で強調
+ * - 入力文字は透明化し、デザインのみ変更（操作は阻害しない）
  *
  * @param {string} value - 現在の入力値
  * @param {Function} onChange - 値変更時のコールバック
@@ -18,7 +15,7 @@
  * @param {Function} [onVariableCommit] - 入力フィールドのBlur時およびテンプレート/候補適用時に呼ばれるコールバック。
  *  引数: (committedText: string) => void。committedTextは現在の全文字列。
  * @param {string} placeholder - プレースホルダーテキスト
- * @param {string} className - 追加CSSクラス
+ * @param {string} className - 追加CSSクラス（従来どおり入力の見た目指定に使用。オーバーレイにも適用され整列する）
  */
 const AutocompleteInput = React.memo(({
     value,
@@ -30,7 +27,7 @@ const AutocompleteInput = React.memo(({
     placeholder = "文節を入力...",
     className = ""
 }) => {
-    const { useState, useEffect, useRef, useCallback } = React;
+    const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
     // 状態管理
     const [isOpen, setIsOpen] = useState(false);
@@ -41,11 +38,62 @@ const AutocompleteInput = React.memo(({
     // DOM参照
     const inputRef = useRef(null);
     const dropdownRef = useRef(null);
+    const overlayRef = useRef(null);
     /**
      * ドロップダウン候補クリック時に onBlur コミットを抑止するためのフラグ
      * マウスダウン→blur→クリックの順序でイベントが発火するため、mousedownでtrueにする
      */
     const suppressBlurCommitRef = useRef(false);
+
+    /**
+     * 入力（単行）の水平スクロールに合わせてオーバーレイを同期
+     * input 要素は scroll イベントが限定的のため、複数イベントで都度同期
+     */
+    const syncInputScroll = useCallback(() => {
+        const el = inputRef.current;
+        const ov = overlayRef.current;
+        if (!el || !ov) return;
+        const x = el.scrollLeft || 0;
+        ov.style.transform = `translateX(${-x}px)`;
+    }, []);
+
+    /**
+     * HTMLエスケープ
+     * @param {string} s - エスケープ対象文字列
+     * @returns {string} エスケープ後の安全な文字列
+     */
+    const escapeHtml = useCallback((s) => String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;'), []);
+
+    /**
+     * 入力テキストをハイライト済みHTMLへ変換
+     * `{{...}}` のトークン全体（波括弧含む）を <span class="tsa-var-token"> で囲う
+     * @param {string} text - 入力文字列
+     * @returns {string} 生成HTML
+     */
+    const toHighlightedHtml = useCallback((text) => {
+        const re = /\{\{\s*([^}\s]+)\s*\}\}/g;
+        const src = String(text ?? '');
+        let html = '';
+        let last = 0;
+        let m;
+        while ((m = re.exec(src)) !== null) {
+            html += escapeHtml(src.slice(last, m.index));
+            html += `<span class=\"tsa-var-token\">${escapeHtml(m[0])}</span>`;
+            last = re.lastIndex;
+        }
+        html += escapeHtml(src.slice(last));
+        return html;
+    }, [escapeHtml]);
+
+    /**
+     * 入力値のハイライト済みHTML（メモ化）
+     */
+    const highlightedHtml = useMemo(() => toHighlightedHtml(value), [value, toHighlightedHtml]);
 
     /**
      * 候補リストの生成とフィルタリング
@@ -233,6 +281,8 @@ const AutocompleteInput = React.memo(({
     const handleInputChange = useCallback((e) => {
         const newValue = e.target.value;
         onChange(newValue);
+        // 入力に伴う水平スクロール同期
+        syncInputScroll();
 
         // 候補がある場合はドロップダウンを表示
         setTimeout(() => {
@@ -240,7 +290,28 @@ const AutocompleteInput = React.memo(({
                 setIsOpen(true);
             }
         }, 100);
-    }, [onChange, suggestions.length]);
+    }, [onChange, suggestions.length, syncInputScroll]);
+
+    // 入力周辺の各種イベントでスクロール同期
+    useEffect(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        const handler = () => syncInputScroll();
+        el.addEventListener('keydown', handler);
+        el.addEventListener('keyup', handler);
+        el.addEventListener('click', handler);
+        el.addEventListener('mouseup', handler);
+        // 初期同期
+        syncInputScroll();
+        return () => {
+            try {
+                el.removeEventListener('keydown', handler);
+                el.removeEventListener('keyup', handler);
+                el.removeEventListener('click', handler);
+                el.removeEventListener('mouseup', handler);
+            } catch (_) {}
+        };
+    }, [syncInputScroll]);
 
     /**
      * フォーカスアウト処理
@@ -279,7 +350,16 @@ const AutocompleteInput = React.memo(({
         className: `relative ${className}`,
         ref: dropdownRef
     },
-        // 入力フィールド
+        // オーバーレイ（視覚表示）
+        React.createElement('div', { className: 'tsa-overlay-container z-0', 'aria-hidden': true },
+            React.createElement('div', {
+                ref: overlayRef,
+                className: 'tsa-overlay-content px-4 py-3',
+                dangerouslySetInnerHTML: { __html: highlightedHtml }
+            })
+        ),
+
+        // 入力フィールド（キャレット・イベント担当）
         React.createElement('input', {
             ref: inputRef,
             type: "text",
@@ -289,7 +369,7 @@ const AutocompleteInput = React.memo(({
             onBlur: handleBlur,
             onKeyDown: handleKeyDown,
             placeholder: placeholder,
-            className: `w-full px-1 py-1 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isVariableMode ? 'ring-2 ring-purple-500' : ''} transition-all`,
+            className: `w-full px-1 py-1 tsa-overlay-input bg-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isVariableMode ? 'ring-2 ring-purple-500' : ''} transition-all relative z-10`,
             autoComplete: "off"
         }),
 
