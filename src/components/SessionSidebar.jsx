@@ -9,9 +9,10 @@
  * @param {Function} props.onNew - 新規作成押下 () => void
  * @param {Function} props.onLoad - セッションロード (session:Object) => void
  * @param {Function} props.onOpenTemplateManager - テンプレート管理開く () => void
+ * @param {Function} props.onOpenDataManagement - データ管理モーダルを開く () => void
  * @returns {JSX.Element} サイドバーJSX
  */
-const SessionSidebar = React.memo(({ open, sessionHistory, onToggle, onNew, onLoad, onOpenTemplateManager }) => {
+const SessionSidebar = React.memo(({ open, sessionHistory, onToggle, onNew, onLoad, onOpenTemplateManager, onOpenDataManagement }) => {
   return React.createElement('div', { className: `${open ? 'w-64' : 'w-0'} transition-all duration-300 bg-gray-800 overflow-hidden` },
     React.createElement('div', { className: "p-4" },
       React.createElement('h2', { className: "text-lg font-semibold mb-4" }, 'セッション履歴'),
@@ -42,6 +43,14 @@ const SessionSidebar = React.memo(({ open, sessionHistory, onToggle, onNew, onLo
           onClick: onOpenTemplateManager,
           className: "w-full px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors"
         }, 'テンプレート管理')
+      ),
+      React.createElement('hr', { className: "my-4 border-gray-700" }),
+      React.createElement('div', { className: "space-y-2" },
+        React.createElement('h3', { className: "text-sm font-semibold text-gray-300" }, 'データ管理'),
+        React.createElement('button', {
+          onClick: onOpenDataManagement,
+          className: "w-full px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors"
+        }, 'インポート/エクスポート')
       )
     )
   );

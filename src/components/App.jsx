@@ -36,6 +36,7 @@ function App() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [showVariableModal, setShowVariableModal] = useState(false);
     const [showTemplateManager, setShowTemplateManager] = useState(false);
+    const [showDataManagement, setShowDataManagement] = useState(false);
     const [showSaveBlockModal, setShowSaveBlockModal] = useState(false);
     const [selectedBlockIndex, setSelectedBlockIndex] = useState(-1);
     const [templates, setTemplates] = useState(
@@ -290,26 +291,6 @@ function App() {
                         React.createElement('svg', { className: "w-5 h-5", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
                             React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" })
                         )
-                    ),
-                    React.createElement('button', {
-                        onClick: () => DataService.exportData(variables, segments, templates, inputHistory),
-                        className: "p-2 hover:bg-white/10 rounded-lg transition-colors",
-                        title: "エクスポート"
-                    },
-                        React.createElement('svg', { className: "w-5 h-5", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
-                            React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" })
-                        )
-                    ),
-                    React.createElement('label', { className: "p-2 hover:bg-white/10 rounded-lg transition-colors cursor-pointer", title: "インポート" },
-                        React.createElement('svg', { className: "w-5 h-5", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
-                            React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" })
-                        ),
-                        React.createElement('input', {
-                            type: "file",
-                            accept: ".json",
-                            onChange: (e) => DataService.importData(e, setVariables, setSegments, setTemplates, setInputHistory),
-                            className: "hidden"
-                        })
                     )
                 )
             )
@@ -344,7 +325,8 @@ function App() {
                     setSegments(session.segments);
                     setVariables(session.variables);
                 },
-                onOpenTemplateManager: () => setShowTemplateManager(true)
+                onOpenTemplateManager: () => setShowTemplateManager(true),
+                onOpenDataManagement: () => setShowDataManagement(true)
             }),
 
             // メインコンテンツ
@@ -570,6 +552,22 @@ function App() {
                 }
 
                 setShowTemplateManager(false);
+            }
+        }),
+        showDataManagement && React.createElement(Components.DataManagementModal, {
+            isOpen: showDataManagement,
+            onClose: () => setShowDataManagement(false),
+            currentData: { variables, segments, templates, inputHistory },
+            onExportAll: () => DataService.exportData(variables, segments, templates, inputHistory),
+            onExportBlocks: () => DataService.exportBlocks(templates.block || []),
+            onImport: ({ file, mode }) => {
+                try { saveToUndoStack(); } catch (_) {}
+                DataService.importDataWithMode(file, mode, { variables, segments, templates, inputHistory }, {
+                    setVariables,
+                    setSegments,
+                    setTemplates,
+                    setInputHistory
+                });
             }
         })
     );
