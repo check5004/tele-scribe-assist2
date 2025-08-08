@@ -55,6 +55,56 @@ function App() {
     const [baselineBlockIndex, setBaselineBlockIndex] = useState(-1); // 比較対象のブロックインデックス
     const [deletionMarkers, setDeletionMarkers] = useState([]); // セグメント間の削除インジケーター位置（0..segments.length）
 
+    /**
+     * テーマ状態（ライト/ダーク）
+     * - 既定はダーク（従来UI維持）
+     * - `localStorage` に保存し、次回起動時に復元
+     */
+    /**
+     * テーマ設定を永続化するためのLocalStorageキー
+     * @type {string}
+     */
+    const THEME_STORAGE_KEY = 'telescribeAssistTheme';
+    const [theme, setTheme] = useState(() => {
+        try {
+            const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+            return saved === 'light' ? 'light' : 'dark';
+        } catch (_) {
+            return 'dark';
+        }
+    });
+
+    /**
+     * テーマクラスの適用
+     * - ルート要素(html) に `theme-light` クラスを付与/削除して一括上書き
+     */
+    useEffect(() => {
+        try {
+            const rootEl = document.documentElement;
+            if (!rootEl) return;
+            if (theme === 'light') {
+                rootEl.classList.add('theme-light');
+            } else {
+                rootEl.classList.remove('theme-light');
+            }
+        } catch (_) {}
+    }, [theme]);
+
+    /**
+     * テーマの永続化
+     */
+    useEffect(() => {
+        try { window.localStorage.setItem(THEME_STORAGE_KEY, theme); } catch (_) {}
+    }, [theme]);
+
+    /**
+     * テーマ切り替え操作
+     * @returns {void}
+     */
+    const toggleTheme = useCallback(() => {
+        setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
+    }, []);
+
     // Undo/Redo機能の初期化（早期に利用可能にする）
     const { undoStack, redoStack, saveToUndoStack, undo, redo } = Hooks.useUndoRedo(
         segments, variables, setSegments, setVariables
@@ -294,6 +344,22 @@ function App() {
                         React.createElement('svg', { className: "w-5 h-5", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
                             React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" })
                         )
+                    ),
+                    // テーマ切替ボタン（ライト/ダーク）
+                    React.createElement('button', {
+                        onClick: toggleTheme,
+                        className: "p-2 hover:bg-white/10 rounded-lg transition-colors",
+                        title: theme === 'light' ? 'ダークモードに切り替え' : 'ライトモードに切り替え',
+                        'aria-label': 'テーマ切り替え',
+                        'aria-pressed': theme === 'light' ? 'true' : 'false'
+                    },
+                        theme === 'light'
+                            ? React.createElement('svg', { className: "w-5 h-5", fill: "currentColor", viewBox: "0 0 20 20", 'aria-hidden': true },
+                                React.createElement('path', { d: "M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4.22 2.47a1 1 0 011.42 1.42l-.7.7a1 1 0 01-1.42-1.42l.7-.7zM17 9a1 1 0 100 2h1a1 1 0 100-2h-1zM4 9a1 1 0 100 2H3a1 1 0 100-2h1zm1.05-4.53a1 1 0 011.4.02l.71.7a1 1 0 01-1.42 1.42l-.7-.71a1 1 0 01.01-1.43zM10 16a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm6.36-2.64a1 1 0 010 1.41l-.71.71a1 1 0 11-1.41-1.41l.71-.71a1 1 0 011.41 0zM6.05 14.36a1 1 0 010 1.41l-.71.71a1 1 0 01-1.41-1.41l.71-.71a1 1 0 011.41 0zM10 6a4 4 0 100 8 4 4 0 000-8z" })
+                            )
+                            : React.createElement('svg', { className: "w-5 h-5", fill: "currentColor", viewBox: "0 0 20 20", 'aria-hidden': true },
+                                React.createElement('path', { d: "M17.293 13.293A8 8 0 016.707 2.707 8.001 8.001 0 1017.293 13.293z" })
+                            )
                     )
                 )
             )

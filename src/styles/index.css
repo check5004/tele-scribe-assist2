@@ -106,3 +106,70 @@ body {
     color: #9ca3af; /* text-gray-400 */
     opacity: 1;
 }
+
+/* ==========================
+   テーマ切り替え: ライトテーマ上書き
+   - body に .theme-light を付与して有効化
+   - Tailwind カラークラスの代表色を !important で上書き
+   ========================== */
+
+.theme-light {
+    /* ベース背景・テキスト */
+    background-color: #f8fafc !important; /* 近い: bg-slate-50 */
+    color: #38393d !important; /* 近い: text-slate-900 */
+}
+
+.theme-light .bg-gray-900 { background-color: #f8fafc !important; }
+.theme-light .bg-gray-800 { background-color: #ffffff !important; }
+.theme-light .bg-gray-700 { background-color: #f1f5f9 !important; }
+.theme-light .bg-gray-600 { background-color: #e2e8f0 !important; }
+.theme-light .text-gray-100 { color: #0f172a !important; }
+.theme-light .text-gray-300 { color: #334155 !important; }
+.theme-light .text-gray-400 { color: #475569 !important; }
+.theme-light .text-white { color: #0f172a !important; }
+.theme-light .hover\:bg-white\/10:hover { background-color: rgba(0,0,0,0.06) !important; }
+.theme-light .hover\:bg-gray-600:hover { background-color: #e2e8f0 !important; }
+.theme-light .hover\:bg-gray-700:hover { background-color: #e2e8f0 !important; }
+.theme-light .border-gray-700 { border-color: #e2e8f0 !important; }
+.theme-light .border-gray-600 { border-color: #cbd5e1 !important; }
+.theme-light .hover\:text-white:hover { color: #0f172a !important; }
+
+/* 入力やテキストエリア（プレースホルダ/キャレット） */
+.theme-light .tsa-overlay-input { caret-color: #0f172a !important; }
+.theme-light .tsa-overlay-input::placeholder { color: #64748b !important; }
+/* 通常の入力/テキストエリアのプレースホルダーも明色向けに */
+.theme-light input::placeholder,
+.theme-light textarea::placeholder { color: #94a3b8 !important; }
+
+/* グラデーションの明色寄り調整 */
+.theme-light .gradient-title {
+    background: linear-gradient(135deg, #93c5fd 0%, #c084fc 100%) !important;
+    color: #0f172a !important;
+}
+
+.theme-light .gradient-accent {
+    background: linear-gradient(135deg, #67e8f9 0%, #60a5fa 50%, #a78bfa 100%) !important;
+    color: #0f172a !important;
+}
+
+/* セッションカード等（bg-gray-700 →明色） */
+.theme-light .bg-gray-700 { background-color: #f8fafc !important; }
+
+/* トースト（ダーク背景 → 明色背景） */
+.theme-light .border-green-400 { border-color: #10b981 !important; }
+.theme-light .bg-gray-800\/95 { background-color: rgba(255, 255, 255, 0.95) !important; color: #0f172a !important; }
+.theme-light .bg-gray-800 { background-color: #ffffff !important; }
+.theme-light .bg-gray-700 { background-color: #f1f5f9 !important; }
+
+/* CTAなど濃色ボタン上の文字は白を維持 */
+.theme-light .bg-blue-600,
+.theme-light .bg-blue-700,
+.theme-light .bg-purple-600,
+.theme-light .bg-purple-700,
+.theme-light .bg-green-600,
+.theme-light .bg-green-700,
+.theme-light .bg-red-600,
+.theme-light .bg-red-700 { color: #ffffff !important; }
+
+/* 変数ハイライトの可読性維持（薄黄色はそのまま） */
+.theme-light .tsa-overlay-content { color: #334155 !important; }
