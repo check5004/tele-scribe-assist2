@@ -318,9 +318,8 @@ const AutocompleteInput = React.memo(({
      * 入力確定タイミングで変数存在チェック用にコミットを一度だけ実行
      */
     const handleBlur = useCallback(() => {
-        // ドロップダウン選択のためのフォーカス移動時はコミットしない
+        // ドロップダウン選択のためのフォーカス移動時はコミットもクローズもしない
         if (suppressBlurCommitRef.current) {
-            setIsOpen(false);
             return;
         }
         try {
@@ -383,7 +382,11 @@ const AutocompleteInput = React.memo(({
                     className: `px-3 py-2 cursor-pointer hover:bg-gray-600 ${
                         selectedIndex === index ? 'bg-blue-600' : ''
                     } border-b border-gray-600 last:border-b-0`,
-                    onMouseDown: () => { suppressBlurCommitRef.current = true; },
+                    onMouseDown: (e) => {
+                        // クリック前に入力が blur して候補が閉じられるのを防ぐ
+                        try { e.preventDefault(); } catch (_) {}
+                        suppressBlurCommitRef.current = true;
+                    },
                     onClick: () => selectSuggestion(suggestion),
                     onMouseEnter: () => setSelectedIndex(index)
                 },
