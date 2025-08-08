@@ -79,7 +79,7 @@ const SegmentItem = React.memo(({ segment, index, onUpdate, onDelete, onAdd, tem
                 inputHistory: inputHistory,
                 variables: variables,
                 onVariableCommit: onVariableCommit,
-                placeholder: "文節を入力...",
+                placeholder: "文節を入力…（{{}}で変数）",
                 className: "flex-1 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             }),
             // 右側の固定幅カラム（変更ドットと削除ハイフンを重ねて表示）
@@ -96,6 +96,7 @@ const SegmentItem = React.memo(({ segment, index, onUpdate, onDelete, onAdd, tem
             ),
             React.createElement('button', {
                 onClick: () => onDelete(index),
+                title: "この文節を削除",
                 className: "p-2 text-red-400 hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
             },
                 React.createElement('svg', {
@@ -114,6 +115,7 @@ const SegmentItem = React.memo(({ segment, index, onUpdate, onDelete, onAdd, tem
             ),
             React.createElement('button', {
                 onClick: () => onAdd(index),
+                title: "この下に文節を追加",
                 className: "p-2 text-green-400 hover:bg-green-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
             },
                 React.createElement('svg', {

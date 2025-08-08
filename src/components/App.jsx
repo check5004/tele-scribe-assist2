@@ -450,6 +450,12 @@ function App() {
                         )
                     ),
                     React.createElement('div', { className: "p-4 flex flex-col flex-1 min-h-0" },
+                        React.createElement('div', { className: "mb-2 text-xs text-gray-400 flex items-center gap-2" },
+                            React.createElement('svg', { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
+                                React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M13 16h-1v-4h-1m1-4h.01M12 6a9 9 0 110 12 9 9 0 010-12z" })
+                            ),
+                            'ヒント: \u007b\u007b 入力で変数候補が開きます。Tabで選択／Enterで確定。左のハンドルで並び替えできます。'
+                        ),
                         React.createElement(Components.SegmentsPane, {
                             segments: segments,
                             deletionMarkers: deletionMarkers,
@@ -547,8 +553,26 @@ function App() {
 
                 if (mode === 'replace') {
                     setSegments(contents.map(text => ({ id: Helpers.generateId(), content: text })));
+                    // 変数の完全同期（テンプレに存在する変数だけに）
+                    try {
+                        const names = TemplateUtils.extractVariableNames(contents);
+                        const nameToVar = new Map((variables || []).map(v => [v.name, v]));
+                        const newVars = names.map(name => nameToVar.get(name) || ({ id: Helpers.generateId(), name, type: 'text', value: '' }));
+                        setVariables(newVars);
+                    } catch (_) {}
                 } else {
                     setSegments(prev => ([...prev, ...contents.map(text => ({ id: Helpers.generateId(), content: text }))]));
+                    // 追加適用時：未登録変数を追加
+                    try {
+                        const names = TemplateUtils.extractVariableNames(contents);
+                        if (names.length > 0) {
+                            const existing = new Set(variables.map(v => v.name));
+                            const toAdd = names.filter(n => !existing.has(n));
+                            if (toAdd.length > 0) {
+                                setVariables(prev => ([...prev, ...toAdd.map(name => ({ id: Helpers.generateId(), name, type: 'text', value: '' }))]));
+                            }
+                        }
+                    } catch (_) {}
                 }
 
                 setShowTemplateManager(false);

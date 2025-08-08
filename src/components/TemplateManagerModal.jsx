@@ -160,7 +160,8 @@ const TemplateManagerModal = ({ templates, setTemplates, isOpen, onClose, onAppl
                             type: 'text',
                             value: newSegmentText,
                             onChange: (e) => setNewSegmentText(e.target.value),
-                            placeholder: '文節テンプレートを入力...',
+                            placeholder: '文節テンプレートを入力（{{}}で変数）',
+                            title: 'ヒント: {{変数名}} と書くと変数が自動作成・参照されます。{{ の直後に候補が表示されます。',
                             className: "flex-1 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         }),
                         React.createElement('button', {
@@ -168,12 +169,19 @@ const TemplateManagerModal = ({ templates, setTemplates, isOpen, onClose, onAppl
                             className: "px-4 py-2 bg-blue-600 rounded-md hover:bg-blue-700"
                         }, '追加')
                     ),
+                    React.createElement('div', { className: "text-xs text-gray-400 flex items-center gap-2" },
+                        React.createElement('svg', { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
+                            React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M13 16h-1v-4h-1m1-4h.01M12 6a9 9 0 110 12 9 9 0 010-12z" })
+                        ),
+                        'ヒント: {{変数名}} と書くと変数が自動作成・参照されます。{{ の直後に候補が出ます（Tabで選択／Enterで確定）。'
+                    ),
                     React.createElement('div', { className: "space-y-2" },
                         segmentDrafts.length === 0 && React.createElement('div', { className: "text-gray-400" }, 'テンプレートは未登録です'),
                         segmentDrafts.map((text, idx) => React.createElement('div', { key: idx, className: "flex gap-2 items-center" },
                             React.createElement('input', {
                                 type: 'text', value: text,
                                 onChange: (e) => updateSegmentTemplate(idx, e.target.value),
+                                title: 'ヒント: {{変数名}} で変数。未登録の変数は自動追加されます。',
                                 className: "flex-1 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                             }),
                             React.createElement('button', { onClick: () => removeSegmentTemplate(idx), className: "px-3 py-2 bg-red-600 rounded-md hover:bg-red-700" }, '削除')
@@ -191,7 +199,7 @@ const TemplateManagerModal = ({ templates, setTemplates, isOpen, onClose, onAppl
                 activeTab === 'block' && React.createElement('div', { className: "space-y-6" },
                     React.createElement('div', { className: "space-y-2" },
                         React.createElement('div', { className: "text-sm text-gray-400" },
-                            'ヒント: ブロックは複数の文節から構成されます。改行ごとに1文節として登録されます。'
+                            'ヒント: ブロックは各行が1文節。{{変数名}} で変数を挿入できます。未登録の変数は自動追加されます。'
                         ),
                         React.createElement('input', {
                             type: 'text', value: newBlockName,
@@ -202,7 +210,8 @@ const TemplateManagerModal = ({ templates, setTemplates, isOpen, onClose, onAppl
                         React.createElement('textarea', {
                             value: newBlockSegments,
                             onChange: (e) => setNewBlockSegments(e.target.value),
-                            placeholder: '各行が1つの文節テンプレート',
+                            placeholder: '各行が1つの文節テンプレート（{{}}で変数）',
+                            title: 'ヒント: 各行が1文節。{{変数名}} で変数。未登録は自動追加されます。',
                             className: "w-full h-32 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         }),
                         React.createElement('div', { className: "flex justify-end" },
@@ -243,6 +252,7 @@ const TemplateManagerModal = ({ templates, setTemplates, isOpen, onClose, onAppl
                             React.createElement('textarea', {
                                 value: Array.isArray(block.segments) ? block.segments.join('\n') : String(block.segments || ''),
                                 onChange: (e) => updateBlockSegments(idx, e.target.value),
+                                title: 'ヒント: 各行が1文節。{{変数名}} で変数。未登録は自動追加されます。',
                                 className: "w-full h-32 px-3 py-2 bg-gray-800 scrollbar-thin"
                             })
                         ))
