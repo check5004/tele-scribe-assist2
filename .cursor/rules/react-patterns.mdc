@@ -17,41 +17,85 @@ alwaysApply: false
 必須最適化パターン:
 ```javascript
 /**
- * メモ化されたコンポーネント例
+ * メモ化されたコンポーネント例（App.jsx の実装に基づく）
  */
-const SegmentItem = memo(({ text, index, onUpdate, onDelete }) => {
+const SegmentItem = React.memo(({ segment, index, templates, inputHistory, variables, onUpdate, onDelete, onAdd, onCommitVariables, changeStatus }) => {
   // useCallbackでイベントハンドラーをメモ化
-  const handleUpdate = useCallback((newText) => {
-    onUpdate(index, newText);
+  const handleUpdate = useCallback((content) => {
+    onUpdate(index, content);
   }, [index, onUpdate]);
 
   const handleDelete = useCallback(() => {
     onDelete(index);
   }, [index, onDelete]);
 
+  const handleAdd = useCallback(() => {
+    onAdd(index);
+  }, [index, onAdd]);
+
+  // 変数コミット処理のメモ化
+  const handleVariableCommit = useCallback((text) => {
+    if (onCommitVariables) {
+      onCommitVariables(text);
+    }
+  }, [onCommitVariables]);
+
   return (
-    // JSX
+    // JSX - AutocompleteInputを含むセグメント編集UI
   );
 });
 ```
 
-### デバウンス入力パターン
-テキスト入力は300msデバウンスを実装:
+### プレビュー同期パターン（usePreviewSync）
+プレビュー編集時の循環更新防止と同期処理:
 ```javascript
 /**
- * デバウンス付き入力更新フック
+ * プレビュー編集同期フック（現在の実装）
+ * 循環更新防止、カーソル位置保存/復元、デバウンス同期を一元管理
  */
-const useDebouncedUpdate = (callback, delay = 300) => {
-  const timeoutRef = useRef(null);
+const usePreviewSync = ({ variables, segments, setVariables, setSegments, saveToUndoStack }) => {
+  const [preview, setPreview] = useState('');
+  const [isEditingPreview, setIsEditingPreview] = useState(false);
+  const previewRef = useRef(null);
 
-  return useCallback((value) => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+  // カーソル位置保存/復元
+  const saveCursorPosition = useCallback(() => {
+    if (previewRef.current && document.activeElement === previewRef.current) {
+      return {
+        start: previewRef.current.selectionStart,
+        end: previewRef.current.selectionEnd
+      };
     }
-    timeoutRef.current = setTimeout(() => {
-      callback(value);
-    }, delay);
-  }, [callback, delay]);
+    return null;
+  }, []);
+
+  const restoreCursorPosition = useCallback((position) => {
+    if (position && previewRef.current) {
+      setTimeout(() => {
+        previewRef.current.focus();
+        previewRef.current.setSelectionRange(position.start, position.end);
+      }, 0);
+    }
+  }, []);
+
+  // デバウンス同期処理（300ms）
+  const handlePreviewChange = useCallback((newText) => {
+    setIsEditingPreview(true);
+    setPreview(newText);
+
+    // 300ms後に同期実行
+    setTimeout(() => {
+      const result = Helpers.updateSegmentsAndVariablesFromPreview(newText, variables, segments);
+      if (result) {
+        setSegments(result.segments);
+        setVariables(result.variables);
+        saveToUndoStack();
+      }
+      setIsEditingPreview(false);
+    }, 300);
+  }, [variables, segments, setVariables, setSegments, saveToUndoStack]);
+
+  return { preview, previewRef, handlePreviewChange, isEditingPreview };
 };
 ```
 
@@ -63,22 +107,36 @@ const useDebouncedUpdate = (callback, delay = 300) => {
 3. セグメント変更 → デバウンス状態更新 → プレビュー再描画
 4. プレビュー編集 → セグメント配列再構築
 
-### 状態更新パターン
+### 状態更新とデータ永続化パターン
 ```javascript
 /**
- * 状態更新とlocalStorage保存の統合パターン
+ * LocalStorage自動保存パターン（App.jsx の実装）
+ * 状態変更時の即座の永続化
  */
-const usePersistedState = (key, initialValue) => {
-  const [state, setState] = useState(initialValue);
+useEffect(() => {
+  saveData(variables, segments, sessionHistory, templates, inputHistory);
+}, [variables, segments, sessionHistory, templates, inputHistory]);
 
-  const updateState = useCallback((newState) => {
-    setState(newState);
-    // 即座にlocalStorageに保存
-    localStorage.setItem(key, JSON.stringify(newState));
-  }, [key]);
+/**
+ * セグメント更新パターン
+ * プレビュー同期を考慮した更新処理
+ */
+const updateSegment = useCallback((index, content) => {
+  setSegments(prev => {
+    const newSegments = [...prev];
+    newSegments[index].content = content;
+    return newSegments;
+  });
+}, []);
 
-  return [state, updateState];
-};
+/**
+ * 変数使用状況の自動分析
+ * セグメント・変数変更時の自動解析処理
+ */
+useEffect(() => {
+  const usageInfo = Helpers.analyzeVariableUsage(variables, segments);
+  setVariableUsageInfo(usageInfo);
+}, [segments, variables]);
 ```
 
 ## コンポーネント設計パターン
@@ -127,19 +185,67 @@ const useUndoRedo = (initialState, maxHistory = 50) => {
 
 ## 特殊実装パターン
 
-### 変数補間システム
+### 変数ハイライト表示システム
 ```javascript
 /**
- * テンプレート変数の置換処理
+ * オーバーレイレイヤーによる変数ハイライト（AutocompleteInput、PreviewPane）
+ * 入力操作を阻害せず、視覚的強調のみを実現
+ */
+const renderHighlightedOverlay = useMemo(() => {
+  if (!value) return '';
+
+  // 正規表現で {{変数名}} を検出してハイライト適用
+  return value.replace(/(\{\{[^}]*\}\})/g,
+    '<span class="inline-block px-1 bg-blue-500/20 border border-blue-400/40 rounded text-blue-300">$1</span>'
+  );
+}, [value]);
+
+/**
+ * 変数補間システム（TemplateUtils使用）
  */
 const interpolateVariables = (text, variables) => {
   let result = text;
   variables.forEach(variable => {
-    const regex = new RegExp(`{{${variable.name}}}`, 'g');
+    const regex = new RegExp(`\\{\\{\\s*${variable.name}\\s*\\}\\}`, 'g');
     result = result.replace(regex, formatVariable(variable));
   });
   return result;
 };
+```
+
+### 差分整列・変更検出システム
+```javascript
+/**
+ * Git風差分表示パターン（App.jsx実装）
+ * ブロックテンプレートとの比較による変更ステータス管理
+ */
+useEffect(() => {
+  const baseIdx = baselineBlockIndex >= 0 ? baselineBlockIndex : selectedBlockIndex;
+  const baseline = (templates.block || [])[baseIdx]?.segments || [];
+  const current = segments.map(s => String(s.content ?? ''));
+
+  // DiffUtils使用の類似性ベースLCS整列
+  const { pairs, deletions } = DiffUtils.computeDiffAlignment(
+    baseline.map(s => String(s ?? '')),
+    current
+  );
+
+  // 変更ステータス（new/edited/null）の決定
+  const currentIndexToBaselineIndex = new Map();
+  for (const [bi, cj] of pairs) currentIndexToBaselineIndex.set(cj, bi);
+
+  const nextStatus = current.map((content, j) => {
+    if (!currentIndexToBaselineIndex.has(j)) {
+      return 'new';
+    }
+    const bi = currentIndexToBaselineIndex.get(j);
+    const baseContent = String(baseline[bi] ?? '');
+    return content === baseContent ? null : 'edited';
+  });
+
+  setSegmentChangeStatus(nextStatus);
+  setDeletionMarkers(deletions);
+}, [segments, templates, selectedBlockIndex, baselineBlockIndex]);
 ```
 
 ### ドラッグ&ドロップ統合
@@ -196,6 +302,59 @@ class ErrorBoundary extends React.Component {
     return this.props.children;
   }
 }
+```
+
+## トースト通知システム
+```javascript
+/**
+ * トースト通知パターン（App.jsx実装）
+ * 一時的な通知メッセージの表示制御
+ */
+const [toastState, setToastState] = useState({ visible: false, message: '' });
+const toastTimerRef = useRef(null);
+
+const showToast = useCallback((message, durationMs = 1800) => {
+  try {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+  } catch (_) {}
+
+  setToastState({ visible: true, message });
+  toastTimerRef.current = setTimeout(() => {
+    setToastState({ visible: false, message: '' });
+    toastTimerRef.current = null;
+  }, durationMs);
+}, []);
+```
+
+## テンプレート・変数自動追加システム
+```javascript
+/**
+ * 変数コミットパターン（AutocompleteInput Blur時、テンプレート適用時）
+ * 未登録変数の自動検出・追加処理
+ */
+const handleVariableCommit = useCallback((committedText) => {
+  try {
+    const names = TemplateUtils.extractVariableNames(committedText);
+    if (names.length > 0) {
+      const existingNames = new Set(variables.map(v => v.name));
+      const toAdd = names.filter(name => !existingNames.has(name));
+      if (toAdd.length > 0) {
+        setVariables(prev => ([
+          ...prev,
+          ...toAdd.map(name => ({
+            id: Helpers.generateId(),
+            name,
+            type: 'text',
+            value: ''
+          }))
+        ]));
+      }
+    }
+  } catch (_) {}
+}, [variables, setVariables]);
 ```
 
 これらのパターンを一貫して適用し、再利用可能で保守しやすいReactコンポーネントを構築してください。

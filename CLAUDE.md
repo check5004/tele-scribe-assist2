@@ -8,7 +8,7 @@ TeleScribe Assist (テレ・スクライブ・アシスト) is a single-page web
 
 ## Architecture
 
-This is a **modular React application** built without a build system, with two deployment options:
+This is a **modular React application** built without a build system, using CDN-loaded dependencies for direct browser execution. The application follows a component-based architecture with custom hooks for state management and modular utilities.
 
 ### Modular Version (`index.html` + `src/`)
 - **Entry Point**: `index.html` loads modular JavaScript files
@@ -23,10 +23,10 @@ This is a **modular React application** built without a build system, with two d
 - Self-contained HTML file for easy distribution
 
 ### Module Organization
-- **Components** (`src/components/`): React components (App, SegmentItem, VariableModal, VariableInput)
-- **Utilities** (`src/utils/`): Helper functions and date utilities
-- **Services** (`src/services/`): Data persistence and management
-- **Hooks** (`src/hooks/`): Custom React hooks (localStorage, drag-drop, undo/redo)
+- **Components** (`src/components/`): React components including App, SegmentItem, VariableModal, PreviewPane, SessionSidebar, TemplateManagerModal, DataManagementModal
+- **Utilities** (`src/utils/`): Helper functions (dateUtils, diffUtils, templateUtils, helpers)
+- **Services** (`src/services/`): Data persistence and management (dataService)
+- **Hooks** (`src/hooks/`): Custom React hooks (localStorage, drag-drop, undo/redo, preview sync)
 - **Data** (`src/data/`): Constants and sample data
 - **Styles** (`src/styles/`): CSS styling
 
@@ -60,23 +60,37 @@ This is a **modular React application** built without a build system, with two d
 
 ## Development Workflow
 
-### Running the Application
-For the **modular version** (recommended for development):
+### Common Commands
+
+#### Starting the Development Server
 ```bash
-# Serve locally for development
+# Method 1: Using provided batch script (Windows)
+scripts\start-server.bat
+
+# Method 2: Manual server start
 python -m http.server 8000
 # Then visit http://localhost:8000/index.html
+
+# Method 3: Using npx http-server (if installed)
+npx http-server -p 8000 --cors
 ```
 
-For the **single-file version**:
+#### Stopping the Server
 ```bash
-# Open in default browser (Windows)
-start telescribe-assist.html
+# Use provided batch script (Windows)
+scripts\stop-server.bat
 
-# Or serve locally
-python -m http.server 8000
-# Then visit http://localhost:8000/telescribe-assist.html
+# Or manually: Ctrl+C in the terminal running the server
 ```
+
+### Running the Application
+For the **modular version** (recommended for development):
+- Start server and visit `http://localhost:8000/index.html`
+- Edit files in `src/` directory for development
+
+For the **single-file version** (legacy):
+- Open `telescribe-assist.html` directly in browser
+- Or serve at `http://localhost:8000/telescribe-assist.html`
 
 ### Key Development Patterns
 
@@ -170,7 +184,7 @@ Export creates JSON with structure:
 - All external dependencies loaded via CDN - ensure internet connection
 - The app is designed to work offline once loaded
 - **Modular development**: Edit files in `src/` directory for the modular version
-- **Global objects**: Components, utilities, and services are exposed as global objects (e.g., `Components.App`, `Hooks.useLocalStorage`, `Utils.Helpers`)
+- **Global Objects & Dependencies**: Components, utilities, and services are exposed as global objects (e.g., `Components.App`, `Hooks.useLocalStorage`, `Utils.Helpers`). Uses CDN-loaded React 18, Tailwind CSS, SortableJS with no build system
 - **Japanese specification**: Refer to `docs/仕様書.md` for detailed functional requirements in Japanese
 
 ## Code Documentation Standards
@@ -221,6 +235,27 @@ Export creates JSON with structure:
    - Maintain consistency with existing documentation style
 
 This documentation standard ensures code maintainability and helps developers understand the codebase efficiently.
+
+## Performance Optimization Patterns
+
+### Required Optimizations
+- **Component Memoization**: Use `React.memo` for components like `SegmentItem`
+- **Event Handler Memoization**: Use `useCallback` for all event handlers
+- **Debounced Input**: 300ms debounce for text segment updates
+- **Limited History**: Maximum 50 operations for undo/redo stack
+- **Real-time Sync**: Immediate localStorage saves with state updates
+
+### Critical Implementation Details
+- **Variable Interpolation**: Uses regex pattern `/{{${variable.name}}}/g`
+- **Time Processing**: Custom format patterns (YYYY, MM, DD, HH, mm, ss) with rounding logic
+- **Drag & Drop**: SortableJS with `[data-drag-handle]` elements and 150ms animations
+- **Bidirectional Sync**: Preview edits reconstruct segment arrays automatically
+
+## Development Constraints
+- **No Build System**: All code runs directly in browser via CDN dependencies
+- **Offline Capable**: Must function after initial load without internet
+- **Japanese Documentation**: All code comments and documentation in Japanese
+- **Browser Compatibility**: Modern browsers supporting ES6+ and React 18
 
 ## Future Enhancements (Low Priority)
 - Rich text editing with markdown support

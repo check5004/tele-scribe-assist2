@@ -1,7 +1,6 @@
 ---
 alwaysApply: true
 ---
-
 # TeleScribe Assist プロジェクトルール
 
 ## プロジェクト概要
@@ -18,12 +17,37 @@ TeleScribe Assistは電話応答レポート作成支援のモジュラーReact�
 ## ファイル構造
 ```
 src/
-├── components/     # Reactコンポーネント
-├── hooks/         # カスタムReactフック
+├── components/     # Reactコンポーネント（14コンポーネント）
+│   ├── App.jsx                      # メインアプリケーション
+│   ├── AutocompleteInput.jsx       # 変数ハイライト対応入力
+│   ├── DataManagementModal.jsx     # データ管理モーダル
+│   ├── PreviewPane.jsx             # プレビュー表示・編集
+│   ├── SaveBlockTemplateModal.jsx  # ブロックテンプレート保存
+│   ├── SegmentItem.jsx             # セグメントアイテム
+│   ├── SegmentsPane.jsx            # セグメント管理画面
+│   ├── SessionSidebar.jsx          # セッション履歴サイドバー
+│   ├── TemplateManagerModal.jsx    # テンプレート管理
+│   ├── TimeInput.jsx               # 時間入力
+│   ├── TimeVariableSettingsModal.jsx # 時間変数設定
+│   ├── VariableInput.jsx           # 変数入力
+│   ├── VariableModal.jsx           # 変数追加モーダル
+│   └── VariablesPanel.jsx          # 変数管理画面
+├── hooks/         # カスタムReactフック（4フック）
+│   ├── useDragDrop.js              # ドラッグ&ドロップ
+│   ├── useLocalStorage.js          # ローカルストレージ管理
+│   ├── usePreviewSync.js           # プレビュー編集同期
+│   └── useUndoRedo.js              # アンドゥ・リドゥ機能
 ├── services/      # データ永続化・管理
-├── utils/         # ヘルパー関数・日付ユーティリティ
+│   └── dataService.js              # データサービス
+├── utils/         # ヘルパー関数・ユーティリティ（4ファイル）
+│   ├── dateUtils.js                # 日付フォーマット・処理
+│   ├── diffUtils.js                # 差分整列ユーティリティ
+│   ├── helpers.js                  # 汎用ヘルパー関数
+│   └── templateUtils.js            # テンプレート補助
 ├── data/          # 定数・サンプルデータ
+│   └── constants.js                # アプリケーション定数
 └── styles/        # CSSスタイリング
+    └── index.css                   # カスタムスタイル
 ```
 
 ## 必須コーディング規約
@@ -58,19 +82,47 @@ src/
 - **データフロー**: ユーザー入力 → 状態更新 → localStorage保存 → リアルタイムプレビュー
 
 ### 3. 主要実装詳細
-- **変数補間**: 正規表現パターン `/{{${variable.name}}}/g` を使用
-- **時間処理**: YYYY、MM、DD、HH、mm、ss形式パターンと丸め処理
+
+#### 変数システム
+- **変数補間**: 正規表現パターン `/\{\{\s*([^}\s]+)\s*\}\}/g` を使用（TemplateUtils.extractVariableNames）
+- **変数ハイライト**: AutocompleteInput、PreviewPaneで `{{...}}` 形式の変数を視覚的に強調表示
+- **時間処理**: YYYY、MM、DD、HH、mm、ss形式パターンと丸め処理（5分単位フロア等）
+- **変数コミット**: 入力フィールドBlur時とテンプレート適用時の自動変数追加
+
+#### UI・UX機能
 - **ドラッグ&ドロップ**: SortableJSで `[data-drag-handle]` 要素、150msアニメーション
+- **プレビュー同期**: usePreviewSyncで循環更新防止とカーソル位置保存/復元
+- **差分整列**: Git風見た目の類似性ベースLCS整列（DiffUtils）
+- **デバウンス入力**: 300ms遅延での状態更新とプレビュー同期
+
+#### データ管理
 - **データ永続化**: localStorage キー `telescribeAssistData` で自動保存
+- **インポート/エクスポート**: JSON形式でのデータバックアップ機能
+- **セッション履歴**: レポート作成履歴の保存・復元機能
 - **グローバルオブジェクト**: `Components.App`、`Hooks.useLocalStorage`等として公開
 
 ## 状態構造
-- `variables` - 変数オブジェクト配列
-- `segments` - テキストセグメント配列
-- `sessionHistory` - 保存されたレポートセッション
-- `undoStack`/`redoStack` - アンドゥ/リドゥ機能
+
+### コアステート（App.jsx管理）
+- `variables` - 変数オブジェクト配列（id, name, type, value, format, rounding）
+- `segments` - テキストセグメント配列（id, text）
+- `sessionHistory` - 保存されたレポートセッション配列
 - `templates` - セグメント/ブロック用テンプレートデータ
 - `inputHistory` - オートコンプリート用入力履歴
+- `variableUsageInfo` - 変数使用状況情報（使用済み/未使用変数）
+
+### フック管理ステート
+- `undoStack`/`redoStack` - アンドゥ/リドゥ機能（useUndoRedo）
+- `preview` - プレビューテキスト（usePreviewSync）
+- `isEditingPreview` - プレビュー編集中フラグ（usePreviewSync）
+
+### UI制御ステート
+- `sidebarOpen` - サイドバー開閉状態
+- `showVariableModal` - 変数追加モーダル表示フラグ
+- `showTemplateManager` - テンプレート管理モーダル表示フラグ
+- `showDataManagement` - データ管理モーダル表示フラグ
+- `showSaveBlockModal` - ブロック保存モーダル表示フラグ
+- `selectedBlockIndex` - 選択されたブロックのインデックス
 
 ## 開発制約
 - **ビルドシステムなし**: CDN依存関係での直接ブラウザ実行
@@ -78,8 +130,30 @@ src/
 - **日本語文書化**: すべての文書は日本語で記述
 
 ## 開発ワークフロー
-- **ローカルサーバー**: `python -m http.server 8000` で `http://localhost:8000/index.html` へアクセス
-- **デバッグ**: ブラウザDevTools使用、localStorage確認、CDNロード確認
+
+### 開発サーバー起動
+```bash
+# 推奨: 提供されたバッチスクリプト使用（Windows）
+scripts\start-server.bat
+
+# 手動起動
+python -m http.server 8000
+# または
+npx http-server -p 8000 --cors
+```
+
+### デバッグ・開発
+- **アクセス**: `http://localhost:8000/index.html`
 - **ファイル編集**: 常に `src/` ディレクトリ内のモジュラーファイルを編集
+- **デバッグ**: ブラウザDevTools使用、localStorage（`telescribeAssistData`キー）確認
+- **CDN依存**: React、Tailwind、SortableJS、Babel読み込み確認
+- **変数ハイライト**: オーバーレイレイヤーでのCSS描画デバッグ
+
+### テスト・確認項目
+- **変数補間**: `{{変数名}}` パターンの正しい置換
+- **プレビュー同期**: 編集時の循環更新防止とカーソル位置保持
+- **ドラッグ&ドロップ**: セグメント並び替えの正常動作
+- **データ永続化**: localStorage自動保存・復元の確認
+- **変数ハイライト**: 入力・プレビュー画面での視覚的強調表示
 
 必ずこれらのルールに従ってコードの品質とプロジェクトの一貫性を維持してください。
