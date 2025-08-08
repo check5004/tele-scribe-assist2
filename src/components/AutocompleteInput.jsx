@@ -15,6 +15,8 @@
  * @param {Array} templates - テンプレート候補配列
  * @param {Array} inputHistory - 入力履歴候補配列
  * @param {Array} variables - 変数候補配列
+ * @param {Function} [onVariableCommit] - 変数トークン確定時（`}}`入力直後やテンプレート適用時）に呼ばれるコールバック。
+ *  引数: (committedText: string) => void。committedTextは現在の全文字列。
  * @param {string} placeholder - プレースホルダーテキスト
  * @param {string} className - 追加CSSクラス
  */
@@ -24,6 +26,7 @@ const AutocompleteInput = React.memo(({
     templates = [],
     inputHistory = [],
     variables = [],
+    onVariableCommit,
     placeholder = "文節を入力...",
     className = ""
 }) => {
@@ -149,15 +152,21 @@ const AutocompleteInput = React.memo(({
             const lastOpenBrace = beforeCursor.lastIndexOf('{{');
             const newValue = value.substring(0, lastOpenBrace) + suggestion.text + afterCursor;
             onChange(newValue);
+            if (typeof onVariableCommit === 'function') {
+                onVariableCommit(newValue);
+            }
         } else {
             // 通常モード: 全体を候補で置換
             onChange(suggestion.text);
+            if (typeof onVariableCommit === 'function' && /\{\{[^}]+\}\}/.test(suggestion.text)) {
+                onVariableCommit(suggestion.text);
+            }
         }
 
         setIsOpen(false);
         setSelectedIndex(-1);
         inputRef.current?.focus();
-    }, [isVariableMode, value, onChange]);
+    }, [isVariableMode, value, onChange, onVariableCommit]);
 
     /**
      * キーボードイベントハンドラ
@@ -217,13 +226,21 @@ const AutocompleteInput = React.memo(({
         const newValue = e.target.value;
         onChange(newValue);
 
+        // 変数確定検出（カーソル直前の2文字が'}}'のとき）
+        try {
+            // 入力後のテキストで連続する '}}' を検出
+            if (typeof onVariableCommit === 'function' && /\}\}$/.test(newValue)) {
+                onVariableCommit(newValue);
+            }
+        } catch (_) { /* noop */ }
+
         // 候補がある場合はドロップダウンを表示
         setTimeout(() => {
             if (suggestions.length > 0) {
                 setIsOpen(true);
             }
         }, 100);
-    }, [onChange, suggestions.length]);
+    }, [onChange, suggestions.length, onVariableCommit]);
 
     /**
      * 外部クリック処理

@@ -17,8 +17,12 @@
  * @param {Array} templates - テンプレート候補配列
  * @param {Array} inputHistory - 入力履歴候補配列
  * @param {Array} variables - 変数候補配列
+ * @param {Function} [onVariableCommit] - 入力確定時（`}}`直後やテンプレ適用時）の変数検出コールバック
+ * @param {('new'|'edited'|null)} changeStatus - 文節の変更ステータス（新規/編集/なし）
+ * @param {boolean} [showDeletionAbove=false] - この文節の直前に削除差分が存在する場合に表示するか
+ * @param {boolean} [showDeletionBelow=false] - この文節の直後に削除差分が存在する場合に表示するか（末尾用）
  */
-const SegmentItem = React.memo(({ segment, index, onUpdate, onDelete, onAdd, templates = [], inputHistory = [], variables = [] }) => {
+const SegmentItem = React.memo(({ segment, index, onUpdate, onDelete, onAdd, templates = [], inputHistory = [], variables = [], onVariableCommit, changeStatus = null, showDeletionAbove = false, showDeletionBelow = false }) => {
     const { useRef, useState, useEffect } = React;
 
     // ドラッグハンドルの参照
@@ -47,69 +51,84 @@ const SegmentItem = React.memo(({ segment, index, onUpdate, onDelete, onAdd, tem
         setLocalValue(segment.content);
     }, [segment.content]);
 
-    return React.createElement('div', { className: "flex items-center gap-2 p-2 bg-gray-800 rounded-lg group" },
-        React.createElement('div', {
-            ref: dragHandleRef,
-            className: "cursor-move p-1 hover:bg-gray-700 rounded",
-            "data-drag-handle": true
-        },
-            React.createElement('svg', {
-                className: "w-5 h-5 text-gray-400",
-                fill: "none",
-                stroke: "currentColor",
-                viewBox: "0 0 24 24"
+    return React.createElement('div', { className: "w-full" },
+        React.createElement('div', { className: "flex items-center gap-2 p-2 bg-gray-800 rounded-lg group" },
+            React.createElement('div', {
+                ref: dragHandleRef,
+                className: "cursor-move p-1 hover:bg-gray-700 rounded",
+                "data-drag-handle": true
             },
-                React.createElement('path', {
-                    strokeLinecap: "round",
-                    strokeLinejoin: "round",
-                    strokeWidth: 2,
-                    d: "M4 6h16M4 12h16M4 18h16"
-                })
-            )
-        ),
-        React.createElement(Components.AutocompleteInput, {
-            value: localValue,
-            onChange: setLocalValue,
-            templates: templates,
-            inputHistory: inputHistory,
-            variables: variables,
-            placeholder: "文節を入力...",
-            className: "flex-1 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        }),
-        React.createElement('button', {
-            onClick: () => onDelete(index),
-            className: "p-2 text-red-400 hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-        },
-            React.createElement('svg', {
-                className: "w-5 h-5",
-                fill: "none",
-                stroke: "currentColor",
-                viewBox: "0 0 24 24"
+                React.createElement('svg', {
+                    className: "w-5 h-5 text-gray-400",
+                    fill: "none",
+                    stroke: "currentColor",
+                    viewBox: "0 0 24 24"
+                },
+                    React.createElement('path', {
+                        strokeLinecap: "round",
+                        strokeLinejoin: "round",
+                        strokeWidth: 2,
+                        d: "M4 6h16M4 12h16M4 18h16"
+                    })
+                )
+            ),
+            React.createElement(Components.AutocompleteInput, {
+                value: localValue,
+                onChange: setLocalValue,
+                templates: templates,
+                inputHistory: inputHistory,
+                variables: variables,
+                onVariableCommit: onVariableCommit,
+                placeholder: "文節を入力...",
+                className: "flex-1 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            }),
+            // 右側の固定幅カラム（変更ドットと削除ハイフンを重ねて表示）
+            React.createElement('div', { className: "relative w-5 shrink-0 flex items-center justify-center" },
+                changeStatus
+                    ? React.createElement('span', { className: `w-2 h-2 rounded-full ${changeStatus === 'new' ? 'bg-green-400' : 'bg-yellow-400'}` })
+                    : React.createElement('span', { className: "w-2 h-2 rounded-full opacity-0" }),
+                showDeletionAbove && React.createElement('span', {
+                    className: "absolute left-1/2 -translate-x-1/2 bottom-6 -translate-y-1/2 text-red-400 leading-none pointer-events-none select-none z-10"
+                }, '−'),
+                showDeletionBelow && React.createElement('span', {
+                    className: "absolute left-1/2 -translate-x-1/2 top-6 translate-y-1/2 text-red-400 leading-none pointer-events-none select-none z-10"
+                }, '−')
+            ),
+            React.createElement('button', {
+                onClick: () => onDelete(index),
+                className: "p-2 text-red-400 hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
             },
-                React.createElement('path', {
-                    strokeLinecap: "round",
-                    strokeLinejoin: "round",
-                    strokeWidth: 2,
-                    d: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                })
-            )
-        ),
-        React.createElement('button', {
-            onClick: () => onAdd(index),
-            className: "p-2 text-green-400 hover:bg-green-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-        },
-            React.createElement('svg', {
-                className: "w-5 h-5",
-                fill: "none",
-                stroke: "currentColor",
-                viewBox: "0 0 24 24"
+                React.createElement('svg', {
+                    className: "w-5 h-5",
+                    fill: "none",
+                    stroke: "currentColor",
+                    viewBox: "0 0 24 24"
+                },
+                    React.createElement('path', {
+                        strokeLinecap: "round",
+                        strokeLinejoin: "round",
+                        strokeWidth: 2,
+                        d: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    })
+                )
+            ),
+            React.createElement('button', {
+                onClick: () => onAdd(index),
+                className: "p-2 text-green-400 hover:bg-green-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
             },
-                React.createElement('path', {
-                    strokeLinecap: "round",
-                    strokeLinejoin: "round",
-                    strokeWidth: 2,
-                    d: "M12 6v6m0 0v6m0-6h6m-6 0H6"
-                })
+                React.createElement('svg', {
+                    className: "w-5 h-5",
+                    fill: "none",
+                    stroke: "currentColor",
+                    viewBox: "0 0 24 24"
+                },
+                    React.createElement('path', {
+                        strokeLinecap: "round",
+                        strokeLinejoin: "round",
+                        strokeWidth: 2,
+                        d: "M12 6v6m0 0v6m0-6h6m-6 0H6"
+                    })
+                )
             )
         )
     );
