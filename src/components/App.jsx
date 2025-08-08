@@ -55,6 +55,35 @@ function App() {
     const [deletionMarkers, setDeletionMarkers] = useState([]); // セグメント間の削除インジケーター位置（0..segments.length）
 
     /**
+     * トースト通知の状態
+     * 一時的な通知メッセージの表示制御を担当
+     */
+    const [toastState, setToastState] = useState({ visible: false, message: '' });
+    const toastTimerRef = useRef(null);
+
+    /**
+     * トースト表示関数
+     * 指定したメッセージを一定時間だけ画面右下に表示する
+     *
+     * @param {string} message - 表示するメッセージ
+     * @param {number} [durationMs=1800] - 表示継続時間（ミリ秒）
+     * @returns {void}
+     */
+    const showToast = useCallback((message, durationMs = 1800) => {
+        try {
+            if (toastTimerRef.current) {
+                clearTimeout(toastTimerRef.current);
+                toastTimerRef.current = null;
+            }
+        } catch (_) {}
+        setToastState({ visible: true, message });
+        toastTimerRef.current = setTimeout(() => {
+            setToastState({ visible: false, message: '' });
+            toastTimerRef.current = null;
+        }, durationMs);
+    }, []);
+
+    /**
      * 行の類似性判定
      * 完全一致は常に類似とみなし、それ以外は2文字以上の連続部分文字列が共通する場合に類似と判定
      * @param {string} a
@@ -340,6 +369,20 @@ function App() {
         setSessionHistory([newSession, ...sessionHistory].slice(0, 50));
     };
 
+    /**
+     * プレビューの全体コピー（ボタン押下用）
+     * プレーンテキストでコピーし、完了トーストを表示
+     *
+     * 注意: 形式セレクトの変更時コピーではトーストを表示しない
+     * （明示的なボタン操作に限定して通知）
+     *
+     * @returns {void}
+     */
+    const handleCopyButtonClick = useCallback(() => {
+        copyToClipboard('plain');
+        showToast('コピーしました');
+    }, [copyToClipboard, showToast]);
+
     return React.createElement('div', { className: "h-screen overflow-hidden bg-gray-900 text-gray-100 flex flex-col" },
         // ヘッダー
         React.createElement('header', { className: "gradient-title px-6 py-4 shadow-lg" },
@@ -464,7 +507,24 @@ function App() {
                     // プレビューセクション
                     React.createElement('div', { className: "bg-gray-800 rounded-lg shadow-xl overflow-hidden" },
                         React.createElement('div', { className: "gradient-accent p-3" },
-                            React.createElement('h2', { className: "text-lg font-semibold" }, 'プレビュー')
+                            React.createElement('div', { className: "flex items-center justify-between gap-3 flex-wrap" },
+                                React.createElement('h2', { className: "text-lg font-semibold" }, 'プレビュー'),
+                                React.createElement('div', { className: "flex items-center gap-2" },
+                                    React.createElement('select', {
+                                        onChange: (e) => copyToClipboard(e.target.value),
+                                        className: "px-3 py-1.5 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    },
+                                        React.createElement('option', { value: "" }, '形式選択'),
+                                        React.createElement('option', { value: "plain" }, 'プレーンテキスト'),
+                                        React.createElement('option', { value: "markdown" }, 'Markdown'),
+                                        React.createElement('option', { value: "html" }, 'HTML')
+                                    ),
+                                    React.createElement('button', {
+                                        onClick: handleCopyButtonClick,
+                                        className: "px-3 py-1.5 bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+                                    }, '全体コピー')
+                                )
+                            )
                         ),
                         React.createElement('div', { className: "p-4" },
                         React.createElement('textarea', {
@@ -491,28 +551,25 @@ function App() {
                                 className: "w-full h-48 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 scrollbar-thin resize-none",
                                 placeholder: "ここに報告文が表示されます..."
                             }),
-                            React.createElement('div', { className: "flex gap-2 mt-3" },
-                                React.createElement('button', {
-                                    onClick: () => copyToClipboard('plain'),
-                                    className: "flex-1 px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-                                }, '全体コピー'),
-                                React.createElement('select', {
-                                    onChange: (e) => copyToClipboard(e.target.value),
-                                    className: "px-3 py-2 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                },
-                                    React.createElement('option', { value: "" }, '形式選択'),
-                                    React.createElement('option', { value: "plain" }, 'プレーンテキスト'),
-                                    React.createElement('option', { value: "markdown" }, 'Markdown'),
-                                    React.createElement('option', { value: "html" }, 'HTML')
-                                )
-                            )
                         )
                     ),
 
                     // 基本情報セクション
                     React.createElement('div', { className: "bg-gray-800 rounded-lg shadow-xl overflow-hidden flex flex-col min-h-0" },
                         React.createElement('div', { className: "gradient-accent p-3 flex-none" },
-                            React.createElement('h2', { className: "text-lg font-semibold" }, '基本情報（変数）')
+                            React.createElement('div', { className: "flex items-center justify-between gap-3" },
+                                React.createElement('h2', { className: "text-lg font-semibold" }, '基本情報（変数）'),
+                                React.createElement('button', {
+                                    onClick: () => setShowVariableModal(true),
+                                    className: "px-3 py-1.5 bg-gray-700 rounded-md hover:bg-gray-600 transition-colors flex items-center gap-2",
+                                    title: "変数を追加"
+                                },
+                                    React.createElement('svg', { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
+                                        React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M12 6v6m0 0v6m0-6h6m-6 0H6" })
+                                    ),
+                                    '変数を追加'
+                                )
+                            )
                         ),
                         React.createElement('div', { className: "p-4 flex flex-col flex-1 min-h-0" },
                             React.createElement('div', { className: "space-y-3 flex-1 min-h-0 overflow-y-auto scrollbar-thin px-2" },
@@ -561,15 +618,6 @@ function App() {
                                         })
                                     )
                                 )
-                            ),
-                            React.createElement('button', {
-                                onClick: () => setShowVariableModal(true),
-                                className: "w-full mt-3 px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors flex items-center justify-center gap-2"
-                            },
-                                React.createElement('svg', { className: "w-5 h-5", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
-                                    React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M12 6v6m0 0v6m0-6h6m-6 0H6" })
-                                ),
-                                '変数を追加'
                             )
                         )
                     )
@@ -723,6 +771,13 @@ function App() {
                         )
                     )
                 )
+            )
+        ),
+
+        // トースト（右下固定表示）
+        toastState.visible && React.createElement('div', { className: "fixed bottom-4 right-4 z-50" },
+            React.createElement('div', { className: "pointer-events-auto px-4 py-2 bg-gray-800/95 text-white rounded shadow-lg border-l-4 border-green-400" },
+                toastState.message
             )
         ),
 
