@@ -73,9 +73,12 @@ const createSampleSegments = () => [
  */
 const SAMPLE_TEMPLATES = {
     segment: [
+        'お疲れ様です。',
+        '{{着信時刻}}頃、「{{会社名_お客様名}}様」よりお電話がありました。',
         '{{着信時刻}}に{{会社名}}の{{相手先名}}より着信がありました。',
         '【用件】',
         '【対応】',
+        'TEL：{{TEL}}',
         '資料を確認の上、折り返しご連絡する旨をお伝えしました。',
         '担当者不在のため、後ほど折り返しのご連絡を差し上げる旨お伝えしました。',
         '明日の午前中までにご連絡予定です。',
@@ -106,7 +109,7 @@ const SAMPLE_TEMPLATES = {
  */
 const INITIAL_INPUT_HISTORY = {
     variables: {},
-    segments: ['お世話になっております。', '以上、よろしくお願いいたします。']
+    segments: ['お世話になっております。', 'よろしくお願いいたします。']
 };
 
 /**
@@ -115,6 +118,7 @@ const INITIAL_INPUT_HISTORY = {
  */
 const TIME_FORMAT_PRESETS = [
     { label: 'HH:mm (例: 14:30)', value: 'HH:mm' },
+    { label: 'HH時mm分 (例: 14時30分)', value: 'HH時mm分' },
     { label: 'YYYY/MM/DD HH:mm (例: 2024/03/15 14:30)', value: 'YYYY/MM/DD HH:mm' },
     { label: 'MM/DD HH:mm (例: 03/15 14:30)', value: 'MM/DD HH:mm' },
     { label: 'YYYY-MM-DD HH:mm:ss (例: 2024-03-15 14:30:00)', value: 'YYYY-MM-DD HH:mm:ss' },
