@@ -17,7 +17,7 @@
  * @param {Array} templates - テンプレート候補配列
  * @param {Array} inputHistory - 入力履歴候補配列
  * @param {Array} variables - 変数候補配列
- * @param {Function} [onVariableCommit] - 入力確定時（`}}`直後やテンプレ適用時）の変数検出コールバック
+ * @param {Function} [onVariableCommit] - 入力確定時（Blur時）およびテンプレ/候補適用時の変数検出コールバック
  * @param {('new'|'edited'|null)} changeStatus - 文節の変更ステータス（新規/編集/なし）
  * @param {boolean} [showDeletionAbove=false] - この文節の直前に削除差分が存在する場合に表示するか
  * @param {boolean} [showDeletionBelow=false] - この文節の直後に削除差分が存在する場合に表示するか（末尾用）

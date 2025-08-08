@@ -15,7 +15,7 @@
  * @param {Array} templates - テンプレート候補配列
  * @param {Array} inputHistory - 入力履歴候補配列
  * @param {Array} variables - 変数候補配列
- * @param {Function} [onVariableCommit] - 変数トークン確定時（`}}`入力直後やテンプレート適用時）に呼ばれるコールバック。
+ * @param {Function} [onVariableCommit] - 入力フィールドのBlur時およびテンプレート/候補適用時に呼ばれるコールバック。
  *  引数: (committedText: string) => void。committedTextは現在の全文字列。
  * @param {string} placeholder - プレースホルダーテキスト
  * @param {string} className - 追加CSSクラス
@@ -41,6 +41,11 @@ const AutocompleteInput = React.memo(({
     // DOM参照
     const inputRef = useRef(null);
     const dropdownRef = useRef(null);
+    /**
+     * ドロップダウン候補クリック時に onBlur コミットを抑止するためのフラグ
+     * マウスダウン→blur→クリックの順序でイベントが発火するため、mousedownでtrueにする
+     */
+    const suppressBlurCommitRef = useRef(false);
 
     /**
      * 候補リストの生成とフィルタリング
@@ -166,6 +171,8 @@ const AutocompleteInput = React.memo(({
         setIsOpen(false);
         setSelectedIndex(-1);
         inputRef.current?.focus();
+        // ドロップダウン経由の操作完了後に抑止フラグを解除
+        suppressBlurCommitRef.current = false;
     }, [isVariableMode, value, onChange, onVariableCommit]);
 
     /**
@@ -221,18 +228,11 @@ const AutocompleteInput = React.memo(({
     /**
      * 入力値変更処理
      * デバウンス処理と候補更新を実行
+     * 注意: 変数の自動作成は onBlur で行うため、ここでは `}}` 入力によるコミットは行わない
      */
     const handleInputChange = useCallback((e) => {
         const newValue = e.target.value;
         onChange(newValue);
-
-        // 変数確定検出（カーソル直前の2文字が'}}'のとき）
-        try {
-            // 入力後のテキストで連続する '}}' を検出
-            if (typeof onVariableCommit === 'function' && /\}\}$/.test(newValue)) {
-                onVariableCommit(newValue);
-            }
-        } catch (_) { /* noop */ }
 
         // 候補がある場合はドロップダウンを表示
         setTimeout(() => {
@@ -240,7 +240,25 @@ const AutocompleteInput = React.memo(({
                 setIsOpen(true);
             }
         }, 100);
-    }, [onChange, suggestions.length, onVariableCommit]);
+    }, [onChange, suggestions.length]);
+
+    /**
+     * フォーカスアウト処理
+     * 入力確定タイミングで変数存在チェック用にコミットを一度だけ実行
+     */
+    const handleBlur = useCallback(() => {
+        // ドロップダウン選択のためのフォーカス移動時はコミットしない
+        if (suppressBlurCommitRef.current) {
+            setIsOpen(false);
+            return;
+        }
+        try {
+            if (typeof onVariableCommit === 'function') {
+                onVariableCommit(value);
+            }
+        } catch (_) { /* noop */ }
+        setIsOpen(false);
+    }, [onVariableCommit, value]);
 
     /**
      * 外部クリック処理
@@ -268,6 +286,7 @@ const AutocompleteInput = React.memo(({
             value: value,
             onChange: handleInputChange,
             onFocus: handleFocus,
+            onBlur: handleBlur,
             onKeyDown: handleKeyDown,
             placeholder: placeholder,
             className: `w-full px-1 py-1 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isVariableMode ? 'ring-2 ring-purple-500' : ''} transition-all`,
@@ -284,6 +303,7 @@ const AutocompleteInput = React.memo(({
                     className: `px-3 py-2 cursor-pointer hover:bg-gray-600 ${
                         selectedIndex === index ? 'bg-blue-600' : ''
                     } border-b border-gray-600 last:border-b-0`,
+                    onMouseDown: () => { suppressBlurCommitRef.current = true; },
                     onClick: () => selectSuggestion(suggestion),
                     onMouseEnter: () => setSelectedIndex(index)
                 },
