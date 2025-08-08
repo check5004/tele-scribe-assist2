@@ -4,6 +4,7 @@
  *
  * 対応タイプ:
  * - time: 時刻入力（TimeInputコンポーネントに委譲）
+ * - phone: 電話番号入力（PhoneInputコンポーネントに委譲）
  * - text: テキスト入力（デフォルト）
  *
  * 設計思想:
@@ -22,6 +23,16 @@ const VariableInput = React.memo(({ variable, onChange }) => {
      */
     if (variable.type === 'time') {
         return React.createElement(Components.TimeInput, {
+            variable: variable,
+            onChange: onChange
+        });
+    }
+
+    /**
+     * 電話番号タイプの場合はPhoneInputコンポーネントに委譲
+     */
+    if (variable.type === 'phone') {
+        return React.createElement(Components.PhoneInput, {
             variable: variable,
             onChange: onChange
         });

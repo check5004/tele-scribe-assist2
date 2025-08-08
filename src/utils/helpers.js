@@ -4,6 +4,98 @@
  */
 
 /**
+ * 日本の電話番号フォーマッタ
+ * 入力から数字のみを抽出し、日本の一般的な電話番号規則に基づいてハイフンを自動挿入する
+ *
+ * 対応例:
+ * - 携帯電話/データ通信: 070/080/090/020/050 先頭の11桁 → 3-4-4
+ * - フリーダイヤル: 0120 先頭の10桁 → 4-3-3
+ * - ナビダイヤル: 0570 先頭の10桁 → 4-3-3
+ * - 0800（フリーコール）: 0800 先頭の11桁 → 4-3-4
+ * - 固定電話（東京/大阪）: 03/06 先頭の10桁 → 2-4-4
+ * - 固定電話（その他・簡易ルール）: 先頭0かつ10桁 → 3-3-4
+ * - 上記以外や桁数が適合しない場合 → ハイフンなし（数字のみ）を返す
+ *
+ * 注意:
+ * - 完全な市外局番辞書を持たない簡易実装。主要なパターンを優先的に整形する。
+ *
+ * @param {string} input - 入力文字列（数字以外が含まれていてもよい）
+ * @returns {string} ハイフン整形済みの電話番号文字列（不適合時は数字のみ）
+ */
+const formatJapanesePhone = (input) => {
+    // 全角数字を半角にし、非数字を除去
+    const normalized = String(input ?? '').replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+    const digits = normalized.replace(/\D/g, '');
+    if (digits.length === 0) return '';
+
+    // 1) ライブラリ優先（libphonenumber-js が存在する場合）
+    try {
+        if (typeof window !== 'undefined' && window.libphonenumber) {
+            const asYouType = new window.libphonenumber.AsYouType('JP');
+            asYouType.input(digits);
+            const formatted = asYouType.formattedOutput || asYouType.getNumberValue() || '';
+            if (formatted) {
+                // formatted はハイフン入りのことが多い。なければ自前フォールバックへ。
+                // 余計な空白を除去
+                return String(formatted).trim();
+            }
+        }
+    } catch (_) { /* フォールバックへ */ }
+
+    // 2) フォールバック: 主要パターンルール
+    // 特番系
+    if (digits.startsWith('0120') && digits.length === 10) {
+        return `${digits.slice(0, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}`;
+    }
+    if (digits.startsWith('0570') && digits.length === 10) {
+        return `${digits.slice(0, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}`;
+    }
+    if (digits.startsWith('0800') && digits.length === 11) {
+        return `${digits.slice(0, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}`;
+    }
+
+    // 携帯・IP・M2M 等（11桁）
+    const mobilePrefixes = ['070', '080', '090', '050', '020'];
+    if (mobilePrefixes.some(p => digits.startsWith(p)) && digits.length === 11) {
+        return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+    }
+
+    // 固定電話（主要）
+    if ((digits.startsWith('03') || digits.startsWith('06')) && digits.length === 10) {
+        return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6)}`;
+    }
+
+    // 固定電話（簡易既定）
+    if (digits.length === 10 && digits.startsWith('0')) {
+        return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+
+    // 既定（11桁は 3-4-4 で整形）
+    if (digits.length === 11) {
+        return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+    }
+
+    // 不明: ハイフンなしで返す
+    return digits;
+};
+
+/**
+ * 変数名からタイプを推定
+ * 現状は電話関連（TEL/電話）のみ 'phone' とし、それ以外は 'text'
+ *
+ * @param {string} name - 変数名
+ * @returns {('phone'|'text')} 推定されたタイプ
+ */
+const guessVariableTypeByName = (name) => {
+    const n = String(name || '').trim();
+    const upper = n.toUpperCase();
+    if (upper === 'TEL' || upper.startsWith('TEL') || n.includes('電話')) {
+        return 'phone';
+    }
+    return 'text';
+};
+
+/**
  * ユニークID生成関数
  * ランダムな文字列を使用した簡易ユニークIDを生成
  * Reactのkey、セグメントID、変数IDなどで使用
@@ -718,6 +810,9 @@ window.Helpers = {
     analyzeVariableDeletionImpact,
     escapeRegExp,
     debounce,
+    // 電話番号ユーティリティ
+    formatJapanesePhone,
+    guessVariableTypeByName,
     // 変数値同期システム（新版）
     updateSegmentsAndVariablesFromPreview,
     updateSegmentWithVariables,

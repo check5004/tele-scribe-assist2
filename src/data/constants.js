@@ -44,6 +44,12 @@ const createSampleVariables = () => [
         name: '用件',
         type: 'text',
         value: '見積もりの件'
+    },
+    {
+        id: Helpers.generateId(),
+        name: 'TEL',
+        type: 'phone',
+        value: ''
     }
 ];
 

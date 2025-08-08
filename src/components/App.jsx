@@ -476,7 +476,15 @@ function App() {
                                                 const existing = new Set(variables.map(v => v.name));
                                                 const toAdd = names.filter(n => !existing.has(n));
                                                 if (toAdd.length > 0) {
-                                                    setVariables(prev => ([...prev, ...toAdd.map(name => ({ id: Helpers.generateId(), name, type: 'text', value: '' }))]));
+                                                    setVariables(prev => ([
+                                                        ...prev,
+                                                        ...toAdd.map(name => ({
+                                                            id: Helpers.generateId(),
+                                                            name,
+                                                            type: Helpers.guessVariableTypeByName(name),
+                                                            value: ''
+                                                        }))
+                                                    ]));
                                                 }
                                             }
                                         } catch (_) {}
@@ -505,7 +513,7 @@ function App() {
                                         try {
                                             const names = TemplateUtils.extractVariableNames(contents);
                                             const nameToVar = new Map((variables || []).map(v => [v.name, v]));
-                                            const newVars = names.map(name => nameToVar.get(name) || ({ id: Helpers.generateId(), name, type: 'text', value: '' }));
+                                            const newVars = names.map(name => nameToVar.get(name) || ({ id: Helpers.generateId(), name, type: Helpers.guessVariableTypeByName(name), value: '' }));
                                             setVariables(newVars);
                                         } catch (_) {}
                                     },
@@ -551,7 +559,7 @@ function App() {
                                         if (toAdd.length > 0) {
                                             setVariables(prev => ([
                                                 ...prev,
-                                                ...toAdd.map(name => ({ id: Helpers.generateId(), name, type: 'text', value: '' }))
+                                                ...toAdd.map(name => ({ id: Helpers.generateId(), name, type: Helpers.guessVariableTypeByName(name), value: '' }))
                                             ]));
                                         }
                                     }
@@ -634,7 +642,7 @@ function App() {
                     try {
                         const names = TemplateUtils.extractVariableNames(contents);
                         const nameToVar = new Map((variables || []).map(v => [v.name, v]));
-                        const newVars = names.map(name => nameToVar.get(name) || ({ id: Helpers.generateId(), name, type: 'text', value: '' }));
+                        const newVars = names.map(name => nameToVar.get(name) || ({ id: Helpers.generateId(), name, type: Helpers.guessVariableTypeByName(name), value: '' }));
                         setVariables(newVars);
                     } catch (_) {}
                 } else {
@@ -646,7 +654,10 @@ function App() {
                             const existing = new Set(variables.map(v => v.name));
                             const toAdd = names.filter(n => !existing.has(n));
                             if (toAdd.length > 0) {
-                                setVariables(prev => ([...prev, ...toAdd.map(name => ({ id: Helpers.generateId(), name, type: 'text', value: '' }))]));
+                                setVariables(prev => ([
+                                    ...prev,
+                                    ...toAdd.map(name => ({ id: Helpers.generateId(), name, type: Helpers.guessVariableTypeByName(name), value: '' }))
+                                ]));
                             }
                         }
                     } catch (_) {}

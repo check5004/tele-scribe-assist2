@@ -29,7 +29,9 @@ const VariableModal = ({ variables, setVariables, setShowVariableModal, saveToUn
             id: Helpers.generateId(),
             name: varName,
             type: varType,
-            value: varType === 'time' ? DateUtils.formatDateTime(new Date(), 'HH:mm') : '',
+            value: varType === 'time'
+                ? DateUtils.formatDateTime(new Date(), 'HH:mm')
+                : '',
             // 時刻タイプの場合はフォーマットと丸め設定を追加
             ...(varType === 'time' && {
                 formatMode: 'preset',
@@ -63,7 +65,8 @@ const VariableModal = ({ variables, setVariables, setShowVariableModal, saveToUn
                     className: "w-full px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 },
                     React.createElement('option', { value: "text" }, 'テキスト'),
-                    React.createElement('option', { value: "time" }, '時刻')
+                    React.createElement('option', { value: "time" }, '時刻'),
+                    React.createElement('option', { value: "phone" }, '電話番号')
                 )
             ),
             React.createElement('div', { className: "flex justify-end gap-2" },
