@@ -25,10 +25,10 @@ const PreviewPane = React.memo(({ preview, previewRef, onChange, onCopyFormatCha
         React.createElement('h2', { className: "text-lg font-semibold" }, 'プレビュー'),
         React.createElement('div', { className: "flex items-center gap-2" },
           React.createElement('select', {
+            defaultValue: "plain",
             onChange: (e) => onCopyFormatChange && onCopyFormatChange(e.target.value),
             className: "px-3 py-1.5 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           },
-            React.createElement('option', { value: "" }, '形式選択'),
             React.createElement('option', { value: "plain" }, 'プレーンテキスト'),
             React.createElement('option', { value: "markdown" }, 'Markdown'),
             React.createElement('option', { value: "html" }, 'HTML')
