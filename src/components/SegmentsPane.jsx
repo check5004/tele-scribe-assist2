@@ -30,7 +30,7 @@ const SegmentsPane = React.memo(({
   onAddLineButton
 }) => {
   return React.createElement(React.Fragment, null,
-    React.createElement('div', { id: "segments-container", className: "space-y-2 flex-1 min-h-0 overflow-y-auto scrollbar-thin" },
+    React.createElement('div', { id: "segments-container", className: "space-y-2 lg:flex-1 lg:min-h-0 lg:overflow-y-auto overflow-visible scrollbar-thin" },
       segments.map((segment, index) => {
         const showDeletionAbove = (deletionMarkers || []).includes(index);
         const showDeletionBelow = (deletionMarkers || []).includes(index + 1);

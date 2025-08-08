@@ -13,8 +13,14 @@
  * @returns {JSX.Element} サイドバーJSX
  */
 const SessionSidebar = React.memo(({ open, sessionHistory, onToggle, onNew, onLoad, onOpenTemplateManager, onOpenDataManagement }) => {
-  return React.createElement('div', { className: `${open ? 'w-64' : 'w-0'} transition-all duration-300 bg-gray-800 overflow-hidden` },
-    React.createElement('div', { className: "p-4" },
+  return React.createElement('aside', {
+    id: 'session-sidebar',
+    className: `${open ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-40 w-64 bg-gray-800 overflow-hidden transition-all duration-300 lg:relative lg:translate-x-0 ${open ? 'lg:w-64' : 'lg:w-0'}`,
+    role: 'complementary',
+    'aria-label': 'セッション履歴サイドバー'
+  },
+    React.createElement('div', { className: "w-64 min-w-[16rem] max-w-[16rem] h-full flex flex-col" },
+      React.createElement('div', { className: "p-4" },
       React.createElement('h2', { className: "text-lg font-semibold mb-4" }, 'セッション履歴'),
       React.createElement('button', {
         onClick: onNew,
@@ -51,7 +57,13 @@ const SessionSidebar = React.memo(({ open, sessionHistory, onToggle, onNew, onLo
           onClick: onOpenDataManagement,
           className: "w-full px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors"
         }, 'インポート/エクスポート')
-      )
+      ),
+      React.createElement('div', { className: 'lg:hidden mt-6' },
+        React.createElement('button', {
+          onClick: onToggle,
+          className: 'w-full px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors'
+        }, '閉じる')
+      ))
     )
   );
 });

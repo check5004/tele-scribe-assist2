@@ -11,7 +11,7 @@
  * @returns {JSX.Element} 変数一覧パネルのJSX
  */
 const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onDelete, onAddClick }) => {
-  return React.createElement('div', { className: "bg-gray-800 rounded-lg shadow-xl overflow-hidden flex flex-col min-h-0" },
+  return React.createElement('div', { className: "bg-gray-800 rounded-lg shadow-xl overflow-hidden flex flex-col lg:min-h-0" },
     React.createElement('div', { className: "gradient-accent p-3 flex-none" },
       React.createElement('div', { className: "flex items-center justify-between gap-3" },
         React.createElement('h2', { className: "text-lg font-semibold" }, '基本情報（変数）'),
@@ -27,8 +27,8 @@ const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onD
         )
       )
     ),
-    React.createElement('div', { className: "p-4 flex flex-col flex-1 min-h-0" },
-      React.createElement('div', { className: "space-y-3 flex-1 min-h-0 overflow-y-auto scrollbar-thin px-2" },
+    React.createElement('div', { className: "p-4 flex flex-col lg:flex-1 lg:min-h-0" },
+      React.createElement('div', { className: "space-y-3 lg:flex-1 lg:min-h-0 lg:overflow-y-auto overflow-visible scrollbar-thin px-2" },
         variables.map((variable, index) => (
           React.createElement('div', { key: variable.id, className: "space-y-2" },
             React.createElement('div', { className: "flex items-center justify-between" },

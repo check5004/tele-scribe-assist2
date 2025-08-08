@@ -33,7 +33,7 @@ function App() {
     );
     // プレビューは usePreviewSync フックで管理するためローカルstateは削除
     const [sessionHistory, setSessionHistory] = useState(initialData?.sessionHistory || []);
-    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(true);
     const [showVariableModal, setShowVariableModal] = useState(false);
     const [showTemplateManager, setShowTemplateManager] = useState(false);
     const [showDataManagement, setShowDataManagement] = useState(false);
@@ -256,14 +256,17 @@ function App() {
         showToast('コピーしました');
     }, [copyToClipboard, showToast]);
 
-    return React.createElement('div', { className: "h-screen overflow-hidden bg-gray-900 text-gray-100 flex flex-col" },
+    return React.createElement('div', { className: "h-screen bg-gray-900 text-gray-100 flex flex-col overflow-y-auto lg:overflow-hidden" },
         // ヘッダー
         React.createElement('header', { className: "gradient-title px-6 py-4 shadow-lg" },
             React.createElement('div', { className: "flex items-center justify-between" },
                 React.createElement('div', { className: "flex items-center gap-4" },
                     React.createElement('button', {
                         onClick: () => setSidebarOpen(!sidebarOpen),
-                        className: "p-2 hover:bg-white/10 rounded-lg transition-colors"
+                        className: "p-2 hover:bg-white/10 rounded-lg transition-colors",
+                        'aria-controls': 'session-sidebar',
+                        'aria-expanded': sidebarOpen ? 'true' : 'false',
+                        title: "サイドバーの開閉"
                     },
                         React.createElement('svg', { className: "w-6 h-6", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
                             React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 6h16M4 12h16M4 18h16" })
@@ -296,7 +299,14 @@ function App() {
             )
         ),
 
-        React.createElement('div', { className: "flex flex-1 overflow-hidden min-h-0" },
+        // モバイル用バックドロップ（サイドバー開放時のみ表示）
+        sidebarOpen && React.createElement('div', {
+            className: "fixed inset-0 bg-black/50 z-30 lg:hidden",
+            onClick: () => setSidebarOpen(false),
+            'aria-hidden': true
+        }),
+
+        React.createElement('div', { className: "flex flex-1 lg:overflow-hidden lg:min-h-0 overflow-visible" },
             // サイドバー（コンポーネント化）
             React.createElement(Components.SessionSidebar, {
                 open: sidebarOpen,
@@ -329,10 +339,10 @@ function App() {
                 onOpenDataManagement: () => setShowDataManagement(true)
             }),
 
-            // メインコンテンツ
-            React.createElement('div', { className: "flex-1 flex gap-4 p-4 overflow-hidden min-h-0" },
+            // メインコンテンツ（狭幅: 縦並び / 広幅: 横並び）
+            React.createElement('div', { className: "flex-1 flex flex-col lg:flex-row gap-4 p-4 lg:overflow-hidden lg:min-h-0 overflow-visible" },
                 // 左パネル
-                React.createElement('div', { className: "flex-1 flex flex-col gap-4 min-w-0 min-h-0" },
+                React.createElement('div', { className: "flex flex-col gap-4 min-w-0 w-full lg:w-1/2 lg:flex-1 lg:min-h-0" },
                     // プレビューセクション（コンポーネント化）
                     React.createElement(Components.PreviewPane, {
                         preview: preview,
@@ -363,8 +373,8 @@ function App() {
                 ),
 
                 // 右パネル
-                React.createElement('div', { className: "flex-1 bg-gray-800 rounded-lg shadow-xl overflow-hidden flex flex-col min-h-0" },
-                    React.createElement('div', { className: "gradient-accent p-3 flex-none" },
+                React.createElement('div', { className: "bg-gray-800 rounded-lg shadow-xl flex flex-col w-full lg:w-1/2 lg:flex-1 lg:min-h-0 lg:overflow-hidden" },
+                    React.createElement('div', { className: "gradient-accent p-3 flex-none rounded-t-lg" },
                         React.createElement('div', { className: "flex items-center justify-between gap-3 flex-wrap" },
                             React.createElement('h2', { className: "text-lg font-semibold" }, '報告文の組み立て（文節）'),
                             React.createElement('div', { className: "flex items-center gap-2" },
@@ -449,7 +459,7 @@ function App() {
                             )
                         )
                     ),
-                    React.createElement('div', { className: "p-4 flex flex-col flex-1 min-h-0" },
+                    React.createElement('div', { className: "p-4 flex flex-col lg:flex-1 lg:min-h-0" },
                         React.createElement('div', { className: "mb-2 text-xs text-gray-400 flex items-center gap-2" },
                             React.createElement('svg', { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
                                 React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M13 16h-1v-4h-1m1-4h.01M12 6a9 9 0 110 12 9 9 0 010-12z" })

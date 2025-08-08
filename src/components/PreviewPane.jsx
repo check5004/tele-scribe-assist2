@@ -87,7 +87,7 @@ const PreviewPane = React.memo(({ preview, previewRef, onChange, onCopyFormatCha
     };
   }, [previewRef, syncScroll]);
 
-  return React.createElement('div', { className: "bg-gray-800 rounded-lg shadow-xl overflow-hidden" },
+  return React.createElement('div', { className: "bg-gray-800 rounded-lg shadow-xl overflow-hidden flex-none shrink-0" },
     React.createElement('div', { className: "gradient-accent p-3" },
       React.createElement('div', { className: "flex items-center justify-between gap-3 flex-wrap" },
         React.createElement('h2', { className: "text-lg font-semibold" }, 'プレビュー'),
