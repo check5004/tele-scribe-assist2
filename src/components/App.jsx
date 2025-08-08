@@ -454,7 +454,7 @@ function App() {
                             React.createElement('svg', { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
                                 React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M13 16h-1v-4h-1m1-4h.01M12 6a9 9 0 110 12 9 9 0 010-12z" })
                             ),
-                            'ヒント: \u007b\u007b 入力で変数候補が開きます。Tabで選択／Enterで確定。左のハンドルで並び替えできます。'
+                            'ヒント: \u007b\u007b 入力で変数候補が開きます。↑↓で選択／Enterで確定。左のハンドルで並び替えできます。'
                         ),
                         React.createElement(Components.SegmentsPane, {
                             segments: segments,

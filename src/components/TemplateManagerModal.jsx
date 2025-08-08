@@ -173,7 +173,7 @@ const TemplateManagerModal = ({ templates, setTemplates, isOpen, onClose, onAppl
                         React.createElement('svg', { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
                             React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M13 16h-1v-4h-1m1-4h.01M12 6a9 9 0 110 12 9 9 0 010-12z" })
                         ),
-                        'ヒント: {{変数名}} と書くと変数が自動作成・参照されます。{{ の直後に候補が出ます（Tabで選択／Enterで確定）。'
+                        'ヒント: {{変数名}} と書くと変数が自動作成・参照されます。{{ の直後に候補が出ます（↑↓で選択／Enterで確定）。'
                     ),
                     React.createElement('div', { className: "space-y-2" },
                         segmentDrafts.length === 0 && React.createElement('div', { className: "text-gray-400" }, 'テンプレートは未登録です'),
