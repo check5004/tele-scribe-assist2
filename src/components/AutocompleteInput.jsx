@@ -346,7 +346,7 @@ const AutocompleteInput = React.memo(({
     }, []);
 
     return React.createElement('div', {
-        className: `relative ${className}`,
+        className: `relative group ${className}`,
         ref: dropdownRef
     },
         // オーバーレイ（視覚表示）
@@ -368,9 +368,24 @@ const AutocompleteInput = React.memo(({
             onBlur: handleBlur,
             onKeyDown: handleKeyDown,
             placeholder: placeholder,
-            className: `w-full px-1 py-1 tsa-overlay-input bg-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isVariableMode ? 'ring-2 ring-purple-500' : ''} transition-all relative z-10`,
+            className: `w-full pr-7 px-1 py-1 tsa-overlay-input bg-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isVariableMode ? 'ring-2 ring-purple-500' : ''} transition-all relative z-10`,
             autoComplete: "off"
         }),
+
+        // クリアボタン（Tab非フォーカス、ホバー時のみ表示）
+        React.createElement('button', {
+            type: 'button',
+            tabIndex: -1,
+            title: '入力内容をクリア',
+            'aria-label': '入力内容をクリア',
+            onMouseDown: (e) => { try { e.preventDefault(); } catch (_) {} },
+            onClick: () => { try { onChange(''); } catch (_) {} },
+            className: 'absolute right-1 top-1/2 -translate-y-1/2 text-gray-300 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity z-20'
+        },
+            React.createElement('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16' })
+            )
+        ),
 
         // 候補ドロップダウン
         isOpen && suggestions.length > 0 && React.createElement('div', {
