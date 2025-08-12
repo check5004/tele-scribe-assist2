@@ -7,10 +7,11 @@
  * @param {Object} props.variableUsageInfo - 使用状況情報 {unusedVariables: string[], usedVariables: string[], variableUsage: object}
  * @param {Function} props.onUpdate - 変数更新 (index:number, updatedVar:Object) => void
  * @param {Function} props.onDelete - 変数削除 (variableId:string) => void
+ * @param {Function} props.onEdit - 変数編集モーダル表示 (variableId:string) => void
  * @param {Function} props.onAddClick - 追加ボタン押下ハンドラ () => void
  * @returns {JSX.Element} 変数一覧パネルのJSX
  */
-const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onDelete, onAddClick }) => {
+const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onDelete, onEdit, onAddClick }) => {
   return React.createElement('div', { className: "bg-gray-800 rounded-lg shadow-xl overflow-hidden flex flex-col lg:min-h-0" },
     React.createElement('div', { className: "gradient-accent p-3 flex-none" },
       React.createElement('div', { className: "flex items-center justify-between gap-3" },
@@ -40,13 +41,26 @@ const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onD
                 variableUsageInfo.unusedVariables.includes(variable.id) &&
                 React.createElement('span', { className: "ml-2 text-xs text-yellow-300" }, '(未使用)')
               ),
-              React.createElement('button', {
-                onClick: () => onDelete(variable.id),
-                className: "text-red-400 hover:text-red-300",
-                title: "変数を削除"
-              },
-                React.createElement('svg', { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
-                  React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M6 18L18 6M6 6l12 12" })
+              React.createElement('div', { className: "flex items-center gap-3" },
+                // 編集（鉛筆）ボタン
+                React.createElement('button', {
+                  onClick: () => onEdit && onEdit(variable.id),
+                  className: "text-gray-300 hover:text-white",
+                  title: "変数を編集"
+                },
+                  React.createElement('svg', { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
+                    React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M15.232 5.232a2.5 2.5 0 013.536 3.536L8.5 19.036H5v-3.5L15.232 5.232z" })
+                  )
+                ),
+                // 削除（バツ）ボタン
+                React.createElement('button', {
+                  onClick: () => onDelete(variable.id),
+                  className: "text-red-400 hover:text-red-300",
+                  title: "変数を削除"
+                },
+                  React.createElement('svg', { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
+                    React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M6 18L18 6M6 6l12 12" })
+                  )
                 )
               )
             ),

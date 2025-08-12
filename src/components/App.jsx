@@ -38,6 +38,13 @@ function App() {
     const [showTemplateManager, setShowTemplateManager] = useState(false);
     const [showDataManagement, setShowDataManagement] = useState(false);
     const [showSaveBlockModal, setShowSaveBlockModal] = useState(false);
+    /**
+     * 変数編集モーダル状態
+     * - 編集対象の変数ID
+     * - モーダル表示フラグ
+     */
+    const [editingVariableId, setEditingVariableId] = useState(null);
+    const [showVariableEditModal, setShowVariableEditModal] = useState(false);
     const [selectedBlockIndex, setSelectedBlockIndex] = useState(-1);
     const [templates, setTemplates] = useState(
         initialData?.templates || Constants.SAMPLE_TEMPLATES
@@ -306,6 +313,64 @@ function App() {
         showToast('コピーしました');
     }, [copyToClipboard, showToast]);
 
+    /**
+     * 変数編集モーダルを開く
+     * @param {string} variableId - 編集対象変数のID
+     */
+    const openVariableEditModal = useCallback((variableId) => {
+        setEditingVariableId(variableId);
+        setShowVariableEditModal(true);
+    }, []);
+
+    /**
+     * 変数編集の適用処理
+     * - 変数名変更に伴い、全セグメント内の `{{旧名}}` を `{{新名}}` に置換
+     * - プレビューは usePreviewSync により自動再生成
+     * - タイプ変更が time の場合、フォーマット・丸め設定を既定値で付与
+     *
+     * @param {{id:string, name:string, type:string}} updated - 更新後の変数情報
+     * @returns {void}
+     */
+    const applyVariableEdit = useCallback((updated) => {
+        try {
+            const idx = variables.findIndex(v => v.id === updated.id);
+            if (idx === -1) return;
+
+            const prevVar = variables[idx];
+            const oldName = String(prevVar.name || '');
+            const newName = String(updated.name || '');
+
+            // 1) 変数配列を更新
+            const nextVariables = [...variables];
+            nextVariables[idx] = {
+                ...prevVar,
+                name: newName,
+                type: updated.type,
+                ...(updated.type === 'time' && {
+                    formatMode: prevVar.formatMode || 'preset',
+                    format: prevVar.format || 'HH:mm',
+                    rounding: prevVar.rounding || { enabled: false, unit: '5', method: 'floor' }
+                })
+            };
+
+            // 2) 文節内の {{旧名}} → {{新名}} を一括置換（厳密一致）
+            const re = new RegExp(`\\{\\{\\s*${Helpers.escapeRegExp(oldName)}\\s*\\}\\}`, 'g');
+            const nextSegments = segments.map(seg => ({
+                ...seg,
+                content: String(seg.content ?? '').replace(re, `{{${newName}}}`)
+            }));
+
+            // 3) 状態反映とUndo
+            saveToUndoStack();
+            setVariables(nextVariables);
+            setSegments(nextSegments);
+
+            // 4) モーダル閉じる
+            setShowVariableEditModal(false);
+            setEditingVariableId(null);
+        } catch (_) {}
+    }, [variables, segments, setVariables, setSegments, saveToUndoStack]);
+
     return React.createElement('div', { className: "h-screen bg-gray-900 text-gray-100 flex flex-col overflow-y-auto lg:overflow-hidden" },
         // ヘッダー
         React.createElement('header', { className: "gradient-title px-6 py-4 shadow-lg" },
@@ -435,6 +500,7 @@ function App() {
                                 saveToUndoStack();
                             }
                         },
+                        onEdit: (variableId) => openVariableEditModal(variableId),
                         onAddClick: () => setShowVariableModal(true)
                     })
                 ),
@@ -681,6 +747,14 @@ function App() {
                     setInputHistory
                 });
             }
+        }),
+        // 変数編集モーダル
+        showVariableEditModal && React.createElement(Components.VariableEditModal, {
+            isOpen: showVariableEditModal,
+            onClose: () => { setShowVariableEditModal(false); setEditingVariableId(null); },
+            variable: variables.find(v => v.id === editingVariableId),
+            variables: variables,
+            onApply: applyVariableEdit
         })
     );
 }
