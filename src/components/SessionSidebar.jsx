@@ -20,7 +20,7 @@
  * @returns {JSX.Element} サイドバーJSX
  */
 const SessionSidebar = React.memo(({ open, sessionHistory, onToggle, onNew, onLoad, onToggleFavorite, onOpenTemplateManager, onOpenDataManagement }) => {
-  const { useState, useMemo, useCallback } = React;
+  const { useState, useMemo, useCallback, useEffect } = React;
   /**
    * 表示タブの状態
    * - 'history': すべての履歴
@@ -69,11 +69,68 @@ const SessionSidebar = React.memo(({ open, sessionHistory, onToggle, onNew, onLo
    * @returns {Array}
    */
   const displayedSessions = useMemo(() => {
-    if (activeTab === 'favorites') {
-      return (sessionHistory || []).filter(s => !!s?.favorite);
-    }
-    return sessionHistory || [];
+    const base = activeTab === 'favorites'
+      ? (sessionHistory || []).filter(s => !!s?.favorite)
+      : (sessionHistory || []);
+    // timestamp 降順で並べ替え（ISO文字列の比較でOK）
+    return [...base].sort((a, b) => String(b?.timestamp || '').localeCompare(String(a?.timestamp || '')));
   }, [activeTab, sessionHistory]);
+
+  /**
+   * リストの相対時刻更新を制御するための現在時刻ステート
+   * - 秒/分/時間単位の表示が存在する場合のみ、適切な間隔で更新する
+   */
+  const [now, setNow] = useState(() => new Date());
+
+  /**
+   * 必要な更新頻度（seconds|minutes|hours|none）を算出
+   * - now を含むのは境界（59秒→1分など）で単位が変わる可能性があるため
+   */
+  const updateUnitNeeded = useMemo(() => {
+    if (!open || !displayedSessions || displayedSessions.length === 0) {
+      return 'none';
+    }
+    let hasSeconds = false;
+    let hasMinutes = false;
+    let hasHours = false;
+    try {
+      for (const s of displayedSessions) {
+        if (!s || !s.timestamp) continue;
+        const info = (window.DateUtils && window.DateUtils.formatSessionTimestampForList)
+          ? window.DateUtils.formatSessionTimestampForList(s.timestamp, now)
+          : { updateUnit: 'none' };
+        if (info.updateUnit === 'seconds') { hasSeconds = true; break; }
+        if (info.updateUnit === 'minutes') { hasMinutes = true; }
+        if (info.updateUnit === 'hours') { hasHours = true; }
+      }
+    } catch (_) {}
+    if (hasSeconds) return 'seconds';
+    if (hasMinutes) return 'minutes';
+    if (hasHours) return 'hours';
+    return 'none';
+  }, [displayedSessions, now, open]);
+
+  /**
+   * 決定された更新頻度に応じてタイマーを設定（最小限の更新）
+   * - seconds: 3秒ごと
+   * - minutes: 1分ごと
+   * - hours: 1時間ごと
+   */
+  useEffect(() => {
+    if (!open || updateUnitNeeded === 'none') {
+      return undefined;
+    }
+    let intervalMs = 0;
+    if (updateUnitNeeded === 'seconds') intervalMs = 3000;
+    else if (updateUnitNeeded === 'minutes') intervalMs = 60 * 1000;
+    else if (updateUnitNeeded === 'hours') intervalMs = 60 * 60 * 1000;
+
+    if (intervalMs > 0) {
+      const id = setInterval(() => setNow(new Date()), intervalMs);
+      return () => clearInterval(id);
+    }
+    return undefined;
+  }, [updateUnitNeeded, open]);
 
   /**
    * お気に入り切り替えボタンの押下ハンドラ
@@ -135,7 +192,16 @@ const SessionSidebar = React.memo(({ open, sessionHistory, onToggle, onNew, onLo
                   formatSessionListText(session.content)
                 ),
                 React.createElement('div', { className: "text-xs text-gray-400" },
-                  new Date(session.timestamp).toLocaleString('ja-JP')
+                  (() => {
+                    try {
+                      if (window.DateUtils && typeof window.DateUtils.formatSessionTimestampForList === 'function') {
+                        const { text } = window.DateUtils.formatSessionTimestampForList(session.timestamp, now);
+                        return text;
+                      }
+                    } catch (_) {}
+                    // フォールバック
+                    return new Date(session.timestamp).toLocaleString('ja-JP');
+                  })()
                 )
               ),
               // 右: お気に入りトグル
