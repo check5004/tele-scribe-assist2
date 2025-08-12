@@ -266,12 +266,14 @@ const TimeInput = React.memo(({ variable, onChange }) => {
                     React.createElement('button', {
                         onClick: () => handleTimeAdjustment(-1),
                         className: "px-2 py-1 bg-gray-700 rounded-l-md hover:bg-gray-600 transition-colors text-gray-300 hover:text-white flex items-center justify-center border-r border-gray-600",
+                        tabIndex: -1,
                         title: `${variable.rounding?.unit || '1'}分減算`
                     }, '－'),
                     // プラスボタン
                     React.createElement('button', {
                         onClick: () => handleTimeAdjustment(1),
                         className: "px-2 py-1 bg-gray-700 rounded-r-md hover:bg-gray-600 transition-colors text-gray-300 hover:text-white flex items-center justify-center",
+                        tabIndex: -1,
                         title: `${variable.rounding?.unit || '1'}分加算`
                     }, '＋')
                 ),
@@ -292,6 +294,7 @@ const TimeInput = React.memo(({ variable, onChange }) => {
                 React.createElement('button', {
                     onClick: () => setShowAdvancedModal(true),
                     className: "ml-2 px-2 py-1 bg-gray-700 rounded-md hover:bg-gray-600 transition-colors text-gray-300 hover:text-white flex items-center justify-center",
+                    tabIndex: -1,
                     title: "詳細設定"
                 }, '⚙️')
             )

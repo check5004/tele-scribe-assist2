@@ -33,6 +33,8 @@ const AutocompleteInput = React.memo(({
     const [isOpen, setIsOpen] = useState(false);
     const [suggestions, setSuggestions] = useState([]);
     const [selectedIndex, setSelectedIndex] = useState(-1);
+    // Tab移動で候補リストに「入った」状態かどうか（実フォーカスはinputのまま）
+    const [isTabbingToSuggestions, setIsTabbingToSuggestions] = useState(false);
     const [isVariableMode, setIsVariableMode] = useState(false);
 
     // DOM参照
@@ -187,6 +189,7 @@ const AutocompleteInput = React.memo(({
         const newSuggestions = generateSuggestions(value, variableMode);
         setSuggestions(newSuggestions);
         setSelectedIndex(-1); // 選択をリセット
+        setIsTabbingToSuggestions(false);
     }, [value, generateSuggestions, detectVariableInput]);
 
     /**
@@ -228,37 +231,58 @@ const AutocompleteInput = React.memo(({
      * ↑↓キーでの候補選択、Enterでの確定、Escapeでのキャンセル
      */
     const handleKeyDown = useCallback((e) => {
-        if (!isOpen || suggestions.length === 0) return;
-
-        switch (e.key) {
-            case 'ArrowDown':
-                e.preventDefault();
-                setSelectedIndex(prev =>
-                    prev < suggestions.length - 1 ? prev + 1 : 0
-                );
-                break;
-
-            case 'ArrowUp':
-                e.preventDefault();
-                setSelectedIndex(prev =>
-                    prev > 0 ? prev - 1 : suggestions.length - 1
-                );
-                break;
-
-            case 'Enter':
-                e.preventDefault();
-                if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
-                    selectSuggestion(suggestions[selectedIndex]);
-                }
-                break;
-
-            case 'Escape':
-                e.preventDefault();
-                setIsOpen(false);
-                setSelectedIndex(-1);
-                break;
+        // 候補オープン時のナビゲーション
+        if (isOpen && suggestions.length > 0) {
+            switch (e.key) {
+                case 'ArrowDown':
+                    e.preventDefault();
+                    setSelectedIndex(prev => (prev < suggestions.length - 1 ? prev + 1 : 0));
+                    setIsTabbingToSuggestions(true);
+                    return;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    setSelectedIndex(prev => (prev > 0 ? prev - 1 : suggestions.length - 1));
+                    setIsTabbingToSuggestions(true);
+                    return;
+                case 'Enter':
+                    if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+                        e.preventDefault();
+                        selectSuggestion(suggestions[selectedIndex]);
+                        setIsTabbingToSuggestions(false);
+                    }
+                    return;
+                case 'Escape':
+                    e.preventDefault();
+                    setIsOpen(false);
+                    setSelectedIndex(-1);
+                    setIsTabbingToSuggestions(false);
+                    return;
+                case 'Tab':
+                    if (!e.shiftKey && !isTabbingToSuggestions) {
+                        // 1回目のTab: 候補リストに「移動」（先頭選択）し、次のTabで次の入力へ
+                        e.preventDefault();
+                        setIsOpen(true);
+                        setSelectedIndex(prev => (prev >= 0 ? prev : 0));
+                        setIsTabbingToSuggestions(true);
+                        return;
+                    }
+                    if (!e.shiftKey && isTabbingToSuggestions) {
+                        // 2回目のTab: 候補を閉じて通常のTab移動
+                        setIsOpen(false);
+                        setSelectedIndex(-1);
+                        setIsTabbingToSuggestions(false);
+                        // デフォルト継続（次要素へ）
+                        return;
+                    }
+                    // Shift+Tab の場合は通常へ（候補が開いていても戻る動作を優先）
+                    setIsOpen(false);
+                    setSelectedIndex(-1);
+                    setIsTabbingToSuggestions(false);
+                    return;
+            }
         }
-    }, [isOpen, suggestions, selectedIndex, selectSuggestion]);
+        // 候補が閉じている場合は通常のTab移動を許可
+    }, [isOpen, suggestions, selectedIndex, selectSuggestion, isTabbingToSuggestions]);
 
     /**
      * フォーカス処理
@@ -328,6 +352,7 @@ const AutocompleteInput = React.memo(({
             }
         } catch (_) { /* noop */ }
         setIsOpen(false);
+        setIsTabbingToSuggestions(false);
     }, [onVariableCommit, value]);
 
     /**

@@ -523,7 +523,8 @@ function App() {
                                         setSelectedBlockIndex(idx);
                                         setBaselineBlockIndex(idx); // ブロック切替時にbaselineを更新
                                     },
-                                    className: "px-2 py-1 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className: "px-2 py-1 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                                    tabIndex: -1
                                 },
                                     React.createElement('option', { value: -1 }, 'ブロック選択'),
                                     (templates.block || []).map((b, i) => React.createElement('option', { key: i, value: i }, b.name || `ブロック${i + 1}`))
@@ -541,6 +542,7 @@ function App() {
                                     },
                                     disabled: selectedBlockIndex < 0,
                                     className: "px-3 py-1 bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50",
+                                    tabIndex: -1,
                                     title: "選択ブロックを末尾に追加"
                                 }, '追加'),
                                 React.createElement('button', {
@@ -555,11 +557,13 @@ function App() {
                                     },
                                     disabled: selectedBlockIndex < 0,
                                     className: "px-3 py-1 bg-purple-600 rounded-md hover:bg-purple-700 disabled:opacity-50",
+                                    tabIndex: -1,
                                     title: "選択ブロックで全置換"
                                 }, '置換'),
                                 React.createElement('button', {
                                     onClick: () => setShowSaveBlockModal(true),
                                     className: `px-3 py-1 rounded-md hover:bg-gray-600 ${((segmentChangeStatus.some(s => s === 'new' || s === 'edited')) || (deletionMarkers && deletionMarkers.length > 0)) ? 'bg-gray-700 relative' : 'bg-gray-700'}`,
+                                    tabIndex: -1,
                                     title: "現在内容をブロック保存"
                                 },
                                     '保存',

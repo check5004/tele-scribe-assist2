@@ -97,7 +97,8 @@ const SegmentItem = React.memo(({ segment, index, onUpdate, onDelete, onAdd, tem
             React.createElement('button', {
                 onClick: () => onDelete(index),
                 title: "この文節を削除",
-                className: "p-2 text-red-400 hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                className: "p-2 text-red-400 hover:bg-red-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity",
+                tabIndex: -1
             },
                 React.createElement('svg', {
                     className: "w-5 h-5",
@@ -116,7 +117,8 @@ const SegmentItem = React.memo(({ segment, index, onUpdate, onDelete, onAdd, tem
             React.createElement('button', {
                 onClick: () => onAdd(index),
                 title: "この下に文節を追加",
-                className: "p-2 text-green-400 hover:bg-green-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                className: "p-2 text-green-400 hover:bg-green-900/20 rounded opacity-0 group-hover:opacity-100 transition-opacity",
+                tabIndex: -1
             },
                 React.createElement('svg', {
                     className: "w-5 h-5",

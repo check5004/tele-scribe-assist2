@@ -53,7 +53,8 @@ const SegmentsPane = React.memo(({
     ),
     React.createElement('button', {
       onClick: onAddLineButton,
-      className: "w-full mt-3 px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors flex items-center justify-center gap-2"
+      className: "w-full mt-3 px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors flex items-center justify-center gap-2",
+      tabIndex: -1
     },
       React.createElement('svg', { className: "w-5 h-5", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
         React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M12 6v6m0 0v6m0-6h6m-6 0H6" })

@@ -27,6 +27,7 @@
 const PreviewPane = React.memo(({ preview, previewRef, onChange, onCopyFormatChange, onCopyButtonClick }) => {
   const { useMemo, useCallback, useRef, useEffect } = React;
   const overlayRef = useRef(null);
+  const copyButtonRef = useRef(null);
 
   /**
    * HTMLエスケープ
@@ -95,15 +96,25 @@ const PreviewPane = React.memo(({ preview, previewRef, onChange, onCopyFormatCha
           React.createElement('select', {
             defaultValue: "plain",
             onChange: (e) => onCopyFormatChange && onCopyFormatChange(e.target.value),
-            className: "px-3 py-1.5 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className: "px-3 py-1.5 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500",
+            tabIndex: -1
           },
             React.createElement('option', { value: "plain" }, 'プレーンテキスト'),
             React.createElement('option', { value: "markdown" }, 'Markdown'),
             React.createElement('option', { value: "html" }, 'HTML')
           ),
           React.createElement('button', {
+            ref: copyButtonRef,
             onClick: onCopyButtonClick,
-            className: "px-3 py-1.5 bg-green-600 rounded-md hover:bg-green-700 transition-colors"
+            className: "px-3 py-1.5 bg-green-600 rounded-md hover:bg-green-700 transition-colors",
+            tabIndex: -1,
+            onKeyDown: (e) => {
+              if (e.key === 'Tab' && e.shiftKey) {
+                // Shift+Tabでtextareaへ戻す
+                e.preventDefault();
+                try { previewRef && previewRef.current && previewRef.current.focus(); } catch (_) {}
+              }
+            }
           }, '全体コピー')
         )
       )
@@ -125,7 +136,14 @@ const PreviewPane = React.memo(({ preview, previewRef, onChange, onCopyFormatCha
           value: preview,
           onChange: (e) => onChange && onChange(e.target.value),
           className: "w-full h-48 px-3 py-2 bg-gray-700 tsa-overlay-input rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 scrollbar-thin resize-none",
-          placeholder: "ここに報告文が表示されます..."
+          placeholder: "ここに報告文が表示されます...",
+          onKeyDown: (e) => {
+            if (e.key === 'Tab' && !e.shiftKey) {
+              // 次のTabはコピーへ移動（DDLは無視）
+              e.preventDefault();
+              try { copyButtonRef && copyButtonRef.current && copyButtonRef.current.focus(); } catch (_) {}
+            }
+          }
         })
       )
     )

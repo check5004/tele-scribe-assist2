@@ -163,6 +163,7 @@ const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onD
         React.createElement('button', {
           onClick: onAddClick,
           className: "px-3 py-1.5 bg-gray-700 rounded-md hover:bg-gray-600 transition-colors flex items-center gap-2",
+          tabIndex: -1,
           title: "変数を追加"
         },
           React.createElement('svg', { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
@@ -190,6 +191,7 @@ const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onD
                 React.createElement('button', {
                   onClick: () => handleCopyVariable(variable.name),
                   className: "text-gray-300 hover:text-white",
+                  tabIndex: -1,
                   title: `コピー: {{${String(variable.name || '').trim()}}}`,
                   'aria-label': `コピー: {{${String(variable.name || '').trim()}}}`
                 },
@@ -203,6 +205,7 @@ const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onD
                 React.createElement('button', {
                   onClick: () => onEdit && onEdit(variable.id),
                   className: "text-gray-300 hover:text-white",
+                  tabIndex: -1,
                   title: "変数を編集"
                 },
                   React.createElement('svg', { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
@@ -213,6 +216,7 @@ const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onD
                 React.createElement('button', {
                   onClick: () => onDelete(variable.id),
                   className: "text-red-400 hover:text-red-300",
+                  tabIndex: -1,
                   title: "変数を削除"
                 },
                   React.createElement('svg', { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },

@@ -101,6 +101,7 @@ const PhoneInput = React.memo(({ variable, onChange, onCommitValue, suggestions,
             className: 'pointer-events-auto px-2 py-0.5 text-xs bg-transparent border border-emerald-400/60 text-emerald-300 hover:bg-emerald-400/10 rounded',
             title: 'グループ候補を適用',
             'aria-label': `${variable.name}にグループ候補を適用`,
+            tabIndex: -1,
             onMouseDown: (e) => { try { e.preventDefault(); } catch (_) {} },
             onClick: () => {
               const v = String(val ?? '');
@@ -130,6 +131,7 @@ const PhoneInput = React.memo(({ variable, onChange, onCommitValue, suggestions,
         key: i,
         type: 'button',
         className: 'w-full text-left px-3 py-2 text-sm hover:bg-gray-700',
+        tabIndex: -1,
         onMouseDown: (e) => { try { e.preventDefault(); } catch (_) {} },
         onClick: () => {
           const v = String(val ?? '');
