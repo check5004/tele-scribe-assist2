@@ -612,6 +612,15 @@ function App() {
                     }]);
                 },
                 onLoad: (session) => {
+                    // セッション履歴適用前の確認ダイアログ
+                    // 未保存変更がある場合は強い警告、それ以外でも確認
+                    try {
+                        const hasUnsaved = (typeof window.__telescribe_hasUnsavedChanges === 'function') && window.__telescribe_hasUnsavedChanges();
+                        const message = hasUnsaved
+                            ? '未保存の変更があります。続行すると現在の編集内容が失われる可能性があります。履歴を適用しますか？'
+                            : 'このセッション履歴を適用しますか？';
+                        if (!confirm(message)) return;
+                    } catch (_) {}
                     try { saveToUndoStack(); } catch (_) {}
                     setSegments(session.segments);
                     setVariables(session.variables);
