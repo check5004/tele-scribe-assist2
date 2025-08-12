@@ -54,169 +54,21 @@ function App() {
         const raw = initialData?.inputHistory || Constants.INITIAL_INPUT_HISTORY;
         return Helpers.ensureInputHistoryShape ? Helpers.ensureInputHistoryShape(raw) : raw;
     });
-    // グループ補完候補（name→{groupValue}）と、最終的に渡す複合候補
-    const [groupSuggestions, setGroupSuggestions] = useState({});
-    const variableSuggestions = useMemo(() => {
-        const byName = {};
-        const shaped = Helpers.ensureInputHistoryShape(inputHistory);
-        const groups = Array.isArray(shaped.valueGroups) ? shaped.valueGroups : [];
-        (variables || []).forEach(v => {
-            const name = v.name;
-            const acc = [];
-            for (const g of groups) {
-                if (!g || !g.variables) continue;
-                if (Object.prototype.hasOwnProperty.call(g.variables, name)) {
-                    const val = String(g.variables[name] ?? '');
-                    if (val && !acc.includes(val)) acc.push(val);
-                }
-            }
-            byName[name] = { history: acc };
-            if (groupSuggestions && groupSuggestions[name]) {
-                const gs = groupSuggestions[name];
-                if (Array.isArray(gs.groupValues)) {
-                    byName[name].groupValues = gs.groupValues.slice();
-                } else if (typeof gs.groupValue === 'string') {
-                    byName[name].groupValues = [gs.groupValue];
-                }
-            }
-        });
-        return byName;
-    }, [inputHistory, groupSuggestions, variables]);
+    // グループ補完・表示用サジェスト（専用フック）
+    const { variableSuggestions, commitVariableValue } = Hooks.useGroupSuggestions(variables, inputHistory);
 
-    /**
-     * 緑の候補Chip（グループ補完）の再計算
-     * 現在の変数集合と過去の valueGroups の一致度を評価して、各変数に候補を提示
-     * - time型は対象外
-     * - グループとの一致度: 入力済み変数での完全一致数 / 対象数（未入力は評価対象外）
-     * - ソート: ①スコア降順 ②一致数降順 ③新しいグループ優先
-     * - 出力: 変数ごとに上位グループから最大3件の候補値を重複除外で抽出
-     *
-     * メモ: 以前は「未入力フィールドのみ候補生成」だったが、Chip側で曖昧検索し
-     * 入力中も表示を継続する仕様に合わせ、全フィールドに対して候補を用意する。
-     * @returns {Object} name -> { groupValues: string[] }
-     */
-    const computeBestGroupSuggestions = useCallback(() => {
-        try {
-            const shaped = Helpers.ensureInputHistoryShape(inputHistory);
-            const groups = Array.isArray(shaped.valueGroups) ? shaped.valueGroups : [];
-            if (!groups.length) return {};
-
-            const nameToType = new Map((variables || []).map(v => [v.name, v.type]));
-            const currentByName = new Map((variables || []).map(v => [v.name, String(v.value ?? '')]));
-
-            // 各グループの一致度を算出し、スコア順にソート
-            const scored = [];
-            for (let i = 0; i < groups.length; i++) {
-                const g = groups[i];
-                const gv = g && g.variables ? g.variables : {};
-                let considered = 0;
-                let matches = 0;
-                for (const [name, val] of currentByName.entries()) {
-                    const t = nameToType.get(name) || 'text';
-                    if (t === 'time') continue;
-                    if (!val) continue;
-                    considered++;
-                    if (Object.prototype.hasOwnProperty.call(gv, name) && String(gv[name] ?? '') === val) {
-                        matches++;
-                    }
-                }
-                if (considered === 0) continue;
-                if (matches === 0) continue; // 一致ゼロのグループは候補から除外
-                const score = matches / considered;
-                scored.push({ idx: i, score, matches });
-            }
-            scored.sort((a, b) => (
-                b.score - a.score ||
-                b.matches - a.matches ||
-                a.idx - b.idx // 新しい方（idx小）が先
-            ));
-
-            // 各フィールドについて、上位グループから最大3件の候補を収集（未入力限定を撤廃）
-            const suggested = {};
-            for (const [name, type] of nameToType.entries()) {
-                if (type === 'time') continue;
-                const vals = [];
-                for (const item of scored) {
-                    const g = groups[item.idx];
-                    const wv = (g && g.variables) ? g.variables : {};
-                    if (!Object.prototype.hasOwnProperty.call(wv, name)) continue;
-                    const val = String(wv[name] ?? '');
-                    if (!val) continue;
-                    if (!vals.includes(val)) vals.push(val);
-                    if (vals.length >= 3) break;
-                }
-                if (vals.length > 0) suggested[name] = { groupValues: vals };
-            }
-            return suggested;
-        } catch (_) {
-            return {};
-        }
-    }, [inputHistory, variables]);
-
-    // 変数値が変化するたび（Change）に緑Chip候補を更新（Blur依存を排除）
-    useEffect(() => {
-        const next = computeBestGroupSuggestions();
-        setGroupSuggestions(next);
-    }, [computeBestGroupSuggestions]);
+    // グループ補完の算出は useGroupSuggestions に移譲
     const [variableUsageInfo, setVariableUsageInfo] = useState({
         unusedVariables: [],
         usedVariables: [],
         variableUsage: {}
     });
     const [unifiedSegments, setUnifiedSegments] = useState([]);
-    const [segmentChangeStatus, setSegmentChangeStatus] = useState([]); // 'new' | 'edited' | null
     const [baselineBlockIndex, setBaselineBlockIndex] = useState(-1); // 比較対象のブロックインデックス
-    const [deletionMarkers, setDeletionMarkers] = useState([]); // セグメント間の削除インジケーター位置（0..segments.length）
+    const { segmentChangeStatus, deletionMarkers } = Hooks.useDiffStatus(segments, templates, selectedBlockIndex, baselineBlockIndex);
 
-    /**
-     * テーマ状態（ライト/ダーク）
-     * - 既定はダーク（従来UI維持）
-     * - `localStorage` に保存し、次回起動時に復元
-     */
-    /**
-     * テーマ設定を永続化するためのLocalStorageキー
-     * @type {string}
-     */
-    const THEME_STORAGE_KEY = 'telescribeAssistTheme';
-    const [theme, setTheme] = useState(() => {
-        try {
-            const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
-            return saved === 'light' ? 'light' : 'dark';
-        } catch (_) {
-            return 'dark';
-        }
-    });
-
-    /**
-     * テーマクラスの適用
-     * - ルート要素(html) に `theme-light` クラスを付与/削除して一括上書き
-     */
-    useEffect(() => {
-        try {
-            const rootEl = document.documentElement;
-            if (!rootEl) return;
-            if (theme === 'light') {
-                rootEl.classList.add('theme-light');
-            } else {
-                rootEl.classList.remove('theme-light');
-            }
-        } catch (_) {}
-    }, [theme]);
-
-    /**
-     * テーマの永続化
-     */
-    useEffect(() => {
-        try { window.localStorage.setItem(THEME_STORAGE_KEY, theme); } catch (_) {}
-    }, [theme]);
-
-    /**
-     * テーマ切り替え操作
-     * @returns {void}
-     */
-    const toggleTheme = useCallback(() => {
-        setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
-    }, []);
+    // テーマ（専用フックへ移譲）
+    const { theme, toggleTheme } = Hooks.useTheme();
 
     // Undo/Redo機能の初期化（早期に利用可能にする）
     const { undoStack, redoStack, saveToUndoStack, undo, redo } = Hooks.useUndoRedo(
@@ -232,34 +84,8 @@ function App() {
         saveToUndoStack
     });
 
-    /**
-     * トースト通知の状態
-     * 一時的な通知メッセージの表示制御を担当
-     */
-    const [toastState, setToastState] = useState({ visible: false, message: '' });
-    const toastTimerRef = useRef(null);
-
-    /**
-     * トースト表示関数
-     * 指定したメッセージを一定時間だけ画面右下に表示する
-     *
-     * @param {string} message - 表示するメッセージ
-     * @param {number} [durationMs=1800] - 表示継続時間（ミリ秒）
-     * @returns {void}
-     */
-    const showToast = useCallback((message, durationMs = 1800) => {
-        try {
-            if (toastTimerRef.current) {
-                clearTimeout(toastTimerRef.current);
-                toastTimerRef.current = null;
-            }
-        } catch (_) {}
-        setToastState({ visible: true, message });
-        toastTimerRef.current = setTimeout(() => {
-            setToastState({ visible: false, message: '' });
-            toastTimerRef.current = null;
-        }, durationMs);
-    }, []);
+    // トースト（専用フックへ移譲）
+    const { toastState, showToast } = Hooks.useToast();
 
     // 類似性判定は utils/diffUtils.js の DiffUtils.linesAreSimilar を使用
 
@@ -294,54 +120,9 @@ function App() {
      * トリガー:
      * - 文節セクションに何らかの変更があったとき（追加・削除・編集・並び替え等）
      */
-    useEffect(() => {
-        try {
-            if (selectedBlockIndex >= 0) return; // 既に選択済みなら何もしない
-            const blocks = Array.isArray(templates?.block) ? templates.block : [];
-            if (blocks.length === 0) return;
+    Hooks.useAutoSelectBlock(segments, templates, selectedBlockIndex, setSelectedBlockIndex, setBaselineBlockIndex);
 
-            const current = segments.map(s => String(s?.content ?? ''));
-            const n = current.length;
-            for (let i = 0; i < blocks.length; i++) {
-                const segs = Array.isArray(blocks[i]?.segments) ? blocks[i].segments.map(s => String(s ?? '')) : [];
-                if (segs.length !== n) continue;
-                let allEqual = true;
-                for (let j = 0; j < n; j++) {
-                    if (segs[j] !== current[j]) { allEqual = false; break; }
-                }
-                if (allEqual) {
-                    setSelectedBlockIndex(i);
-                    setBaselineBlockIndex(i); // 完全一致のため比較基準も同一に合わせる
-                    break;
-                }
-            }
-        } catch (_) {}
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [segments]);
-
-    /**
-     * 文節変更ステータスの再計算
-     * 選択中のブロック（baseline）と現在のsegmentsを常に比較して
-     * 'new'|'edited'|null を割り当てる
-     */
-    useEffect(() => {
-        const baseIdx = baselineBlockIndex >= 0 ? baselineBlockIndex : selectedBlockIndex;
-        const baseline = (templates.block || [])[baseIdx]?.segments || [];
-        const current = segments.map(s => String(s.content ?? ''));
-        const { pairs, deletions } = DiffUtils.computeDiffAlignment(baseline.map(s => String(s ?? '')), current);
-        const currentIndexToBaselineIndex = new Map();
-        for (const [bi, cj] of pairs) currentIndexToBaselineIndex.set(cj, bi);
-        const nextStatus = current.map((content, j) => {
-            if (!currentIndexToBaselineIndex.has(j)) {
-                return 'new';
-            }
-            const bi = currentIndexToBaselineIndex.get(j);
-            const baseContent = String(baseline[bi] ?? '');
-            return content === baseContent ? null : 'edited';
-        });
-        setSegmentChangeStatus(nextStatus);
-        setDeletionMarkers(deletions);
-    }, [segments, templates, selectedBlockIndex, baselineBlockIndex]);
+    // 文節変更ステータスの再計算は useDiffStatus に移譲
 
     // グローバル未保存変更判定（テンプレ管理からの確認用）
     useEffect(() => {
@@ -507,30 +288,6 @@ function App() {
         } catch (_) {}
         showToast('コピーしました');
     }, [copyToClipboard, showToast, variables, setInputHistory]);
-
-    /**
-     * 変数値を履歴へコミット（time型は対象外）
-     * - per var 履歴は先頭ユニーク追加（最大50件）
-     * - 変数名リストへも登録（最大200件）
-     * - コミット後にグループ補完候補を再計算
-     */
-    const commitVariableValue = useCallback((_name, _value, _type) => {
-        // Changeベースの再計算に切替済み。ここでは安全に最新を再評価しておく。
-        try {
-            const next = computeBestGroupSuggestions();
-            setGroupSuggestions(next);
-        } catch (_) {}
-    }, [computeBestGroupSuggestions]);
-
-    /**
-     * 最新一致グループから補完候補を解決
-     * - committed の name/value に完全一致するグループを新しい順で1件採用
-     * - time型は表示対象外
-     * @param {{name:string,value:string,type?:string}} committed
-     * @returns {Object} name→{groupValue?:string, history?:string[]} の部分マップ
-     */
-    // 旧: 単一フィールド完全一致ベースの候補計算（新仕様で未使用）
-    const resolveGroupSuggestions = useCallback(() => ({}), []);
 
     /**
      * 変数編集モーダルを開く
@@ -764,33 +521,11 @@ function App() {
                                         const idx = selectedBlockIndex;
                                         const block = (templates.block || [])[idx];
                                         if (!block) return;
-                                        // 未保存変更がある場合は確認
+                                        // 未保存変更確認
                                         if (typeof window.__telescribe_hasUnsavedChanges === 'function' && window.__telescribe_hasUnsavedChanges()) {
                                             if (!confirm('未保存の変更があります。続行すると変更が失われる可能性があります。続行しますか？')) return;
                                         }
-                                        saveToUndoStack();
-                                        const contents = (block.segments || []).map(text => String(text ?? ''));
-                                        setSegments(prev => ([...prev, ...contents.map(text => ({ id: Helpers.generateId(), content: text }))]));
-                                        // 追加適用時：未登録変数を追加
-                                        try {
-                                            const names = TemplateUtils.extractVariableNames(contents);
-                                            if (names.length > 0) {
-                                                const existing = new Set(variables.map(v => v.name));
-                                                const toAdd = names.filter(n => !existing.has(n));
-                                                if (toAdd.length > 0) {
-                                                    setVariables(prev => ([
-                                                        ...prev,
-                                                        ...toAdd.map(name => ({
-                                                            id: Helpers.generateId(),
-                                                            name,
-                                                            type: Helpers.guessVariableTypeByName(name),
-                                                            value: ''
-                                                        }))
-                                                    ]));
-                                                }
-                                            }
-                                        } catch (_) {}
-                                        // baselineは維持（既存との差分で新規行がnew判定される）
+                                        Hooks.useTemplateOps({ variables, setVariables, segments, setSegments, templates, setBaselineBlockIndex, saveToUndoStack }).applyAppendByIndex(idx);
                                     },
                                     disabled: selectedBlockIndex < 0,
                                     className: "px-3 py-1 bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50",
@@ -801,23 +536,10 @@ function App() {
                                         const idx = selectedBlockIndex;
                                         const block = (templates.block || [])[idx];
                                         if (!block) return;
-                                        // 未保存変更がある場合は確認
                                         if (typeof window.__telescribe_hasUnsavedChanges === 'function' && window.__telescribe_hasUnsavedChanges()) {
                                             if (!confirm('未保存の変更があります。続行すると変更が失われます。置換を実行しますか？')) return;
                                         }
-                                        saveToUndoStack();
-                                        // 置換：segmentsとvariablesをテンプレートに完全同期
-                                        const contents = (block.segments || []).map(text => String(text ?? ''));
-                                        const replaced = contents.map(text => ({ id: Helpers.generateId(), content: text }));
-                                        setSegments(replaced);
-                                        setBaselineBlockIndex(idx); // baselineを置換対象に更新
-                                        // 変数の完全同期（テンプレに存在する変数だけに）
-                                        try {
-                                            const names = TemplateUtils.extractVariableNames(contents);
-                                            const nameToVar = new Map((variables || []).map(v => [v.name, v]));
-                                            const newVars = names.map(name => nameToVar.get(name) || ({ id: Helpers.generateId(), name, type: Helpers.guessVariableTypeByName(name), value: '' }));
-                                            setVariables(newVars);
-                                        } catch (_) {}
+                                        Hooks.useTemplateOps({ variables, setVariables, segments, setSegments, templates, setBaselineBlockIndex, saveToUndoStack }).applyReplaceByIndex(idx);
                                     },
                                     disabled: selectedBlockIndex < 0,
                                     className: "px-3 py-1 bg-purple-600 rounded-md hover:bg-purple-700 disabled:opacity-50",
@@ -945,39 +667,7 @@ function App() {
             isOpen: showTemplateManager,
             onClose: () => setShowTemplateManager(false),
             onApplyBlock: (block, mode) => {
-                // ブロックテンプレート適用処理
-                const contents = (block?.segments || []).map(s => String(s ?? ''));
-                if (contents.length === 0) return;
-
-                saveToUndoStack();
-
-                if (mode === 'replace') {
-                    setSegments(contents.map(text => ({ id: Helpers.generateId(), content: text })));
-                    // 変数の完全同期（テンプレに存在する変数だけに）
-                    try {
-                        const names = TemplateUtils.extractVariableNames(contents);
-                        const nameToVar = new Map((variables || []).map(v => [v.name, v]));
-                        const newVars = names.map(name => nameToVar.get(name) || ({ id: Helpers.generateId(), name, type: Helpers.guessVariableTypeByName(name), value: '' }));
-                        setVariables(newVars);
-                    } catch (_) {}
-                } else {
-                    setSegments(prev => ([...prev, ...contents.map(text => ({ id: Helpers.generateId(), content: text }))]));
-                    // 追加適用時：未登録変数を追加
-                    try {
-                        const names = TemplateUtils.extractVariableNames(contents);
-                        if (names.length > 0) {
-                            const existing = new Set(variables.map(v => v.name));
-                            const toAdd = names.filter(n => !existing.has(n));
-                            if (toAdd.length > 0) {
-                                setVariables(prev => ([
-                                    ...prev,
-                                    ...toAdd.map(name => ({ id: Helpers.generateId(), name, type: Helpers.guessVariableTypeByName(name), value: '' }))
-                                ]));
-                            }
-                        }
-                    } catch (_) {}
-                }
-
+                Hooks.useTemplateOps({ variables, setVariables, segments, setSegments, templates, setBaselineBlockIndex, saveToUndoStack }).applyBlock(block, mode);
                 setShowTemplateManager(false);
             }
         }),
