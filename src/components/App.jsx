@@ -237,12 +237,12 @@ function App() {
      * @param {string} content - 新しい内容
      */
     const updateSegment = useCallback((index, content) => {
-        setSegments(prev => {
-            const newSegments = [...prev];
-            newSegments[index].content = content;
-            return newSegments;
-        });
-    }, []);
+        // テキスト編集もUndo対象とするため、適用前に履歴を保存
+        try { saveToUndoStack(); } catch (_) {}
+        setSegments(prev => prev.map((seg, i) => (
+            i === index ? { ...seg, content } : seg
+        )));
+    }, [saveToUndoStack]);
 
     /**
      * セグメントを削除
@@ -444,6 +444,7 @@ function App() {
                 sessionHistory: sessionHistory,
                 onToggle: () => setSidebarOpen(!sidebarOpen),
                 onNew: () => {
+                    try { saveToUndoStack(); } catch (_) {}
                     setSegments([{ id: Helpers.generateId(), content: '' }]);
                     setVariables([{
                         id: Helpers.generateId(),
@@ -464,6 +465,7 @@ function App() {
                     }]);
                 },
                 onLoad: (session) => {
+                    try { saveToUndoStack(); } catch (_) {}
                     setSegments(session.segments);
                     setVariables(session.variables);
                 },
@@ -489,6 +491,8 @@ function App() {
                         variables: variables,
                         variableUsageInfo: variableUsageInfo,
                         onUpdate: (index, updated) => {
+                            // 変数値編集もUndo対象
+                            try { saveToUndoStack(); } catch (_) {}
                             const newVariables = [...variables];
                             newVariables[index] = updated;
                             setVariables(newVariables);
@@ -624,6 +628,7 @@ function App() {
                                         const existingNames = new Set(variables.map(v => v.name));
                                         const toAdd = names.filter(name => !existingNames.has(name));
                                         if (toAdd.length > 0) {
+                                            try { saveToUndoStack(); } catch (_) {}
                                             setVariables(prev => ([
                                                 ...prev,
                                                 ...toAdd.map(name => ({ id: Helpers.generateId(), name, type: Helpers.guessVariableTypeByName(name), value: '' }))
@@ -634,8 +639,8 @@ function App() {
                             },
                             changeStatus: segmentChangeStatus,
                             onAddLineButton: () => {
+                                try { saveToUndoStack(); } catch (_) {}
                                 setSegments([...segments, { id: Helpers.generateId(), content: '' }]);
-                                saveToUndoStack();
                             }
                         })
                     ),
