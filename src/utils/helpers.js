@@ -810,6 +810,82 @@ window.Helpers = {
     analyzeVariableDeletionImpact,
     escapeRegExp,
     debounce,
+    /**
+     * 値を先頭へユニーク追加するユーティリティ
+     * 既存に同一値がある場合はその要素を先頭へ移動し、最大長を超える分は末尾から削除する
+     *
+     * @param {string[]} list - 既存配列
+     * @param {string} value - 追加（または先頭へ移動）する値
+     * @param {number} maxLen - 配列の最大長（超過時は末尾から削除）
+     * @returns {string[]} 先頭ユニーク追加後の新しい配列
+     */
+    pushUniqueFront: (list, value, maxLen) => {
+        const normalized = String(value ?? '');
+        const src = Array.isArray(list) ? list.slice() : [];
+        const filtered = src.filter(v => v !== normalized);
+        const result = [normalized, ...filtered];
+        if (typeof maxLen === 'number' && maxLen > 0 && result.length > maxLen) {
+            return result.slice(0, maxLen);
+        }
+        return result;
+    },
+    /**
+     * 簡易曖昧検索（部分一致＋サブシーケンス）のランキング
+     * クエリが空のときは候補をそのまま返す。
+     * スコアリング基準:
+     * - 完全一致: 高スコア
+     * - 前方一致: 中スコア
+     * - 部分一致: 低スコア（一致長に応じて加点）
+     * - サブシーケンス一致: ごく低スコア（連続一致長に応じて微加点）
+     *
+     * @param {string[]} candidates - 候補文字列配列
+     * @param {string} query - 検索クエリ
+     * @returns {string[]} ランク付け済み候補（降順）
+     */
+    fuzzyFilterAndRank: (candidates, query) => {
+        const q = String(query || '').trim().toLowerCase();
+        const items = (Array.isArray(candidates) ? candidates : []).map(c => String(c || ''));
+        if (!q) return items;
+        const scoreOf = (s) => {
+            const t = s.toLowerCase();
+            if (t === q) return 1000;
+            if (t.startsWith(q)) return 800 + q.length;
+            const idx = t.indexOf(q);
+            if (idx >= 0) return 500 + (q.length * 2) - idx; // 早い位置ほど加点
+            // サブシーケンス
+            let qi = 0, streak = 0, best = 0;
+            for (let i = 0; i < t.length && qi < q.length; i++) {
+                if (t[i] === q[qi]) {
+                    qi++;
+                    streak++;
+                    best = Math.max(best, streak);
+                } else {
+                    streak = 0;
+                }
+            }
+            return qi === q.length ? 100 + best : 0;
+        };
+        return items
+            .map(s => ({ s, sc: scoreOf(s) }))
+            .filter(x => x.sc > 0)
+            .sort((a, b) => b.sc - a.sc || a.s.length - b.s.length)
+            .map(x => x.s);
+    },
+    /**
+     * 入力履歴オブジェクトの形状を補正
+     * 既存データ（後方互換）に不足キー `variableNames`/`valueGroups` を追加し、既定形へ整える
+     *
+     * @param {any} h - 入力履歴オブジェクト（不完全でも可）
+     * @returns {{variables: Record<string,string[]>, segments: string[], variableNames: string[], valueGroups: Array<{id:string,savedAt:string,variables:Record<string,string>}>}} 補完済み履歴
+     */
+    ensureInputHistoryShape: (h) => {
+        const base = (typeof h === 'object' && h) ? h : {};
+        const variables = (typeof base.variables === 'object' && base.variables) ? base.variables : {};
+        const segments = Array.isArray(base.segments) ? base.segments : [];
+        const variableNames = Array.isArray(base.variableNames) ? base.variableNames : [];
+        const valueGroups = Array.isArray(base.valueGroups) ? base.valueGroups : [];
+        return { variables, segments, variableNames, valueGroups };
+    },
     // 電話番号ユーティリティ
     formatJapanesePhone,
     guessVariableTypeByName,

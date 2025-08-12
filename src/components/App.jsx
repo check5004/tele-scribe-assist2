@@ -49,9 +49,113 @@ function App() {
     const [templates, setTemplates] = useState(
         initialData?.templates || Constants.SAMPLE_TEMPLATES
     );
-    const [inputHistory, setInputHistory] = useState(
-        initialData?.inputHistory || Constants.INITIAL_INPUT_HISTORY
-    );
+    // 入力履歴（不足キーを補完）
+    const [inputHistory, setInputHistory] = useState(() => {
+        const raw = initialData?.inputHistory || Constants.INITIAL_INPUT_HISTORY;
+        return Helpers.ensureInputHistoryShape ? Helpers.ensureInputHistoryShape(raw) : raw;
+    });
+    // グループ補完候補（name→{groupValue}）と、最終的に渡す複合候補
+    const [groupSuggestions, setGroupSuggestions] = useState({});
+    const variableSuggestions = useMemo(() => {
+        const byName = {};
+        const shaped = Helpers.ensureInputHistoryShape(inputHistory);
+        const groups = Array.isArray(shaped.valueGroups) ? shaped.valueGroups : [];
+        (variables || []).forEach(v => {
+            const name = v.name;
+            const acc = [];
+            for (const g of groups) {
+                if (!g || !g.variables) continue;
+                if (Object.prototype.hasOwnProperty.call(g.variables, name)) {
+                    const val = String(g.variables[name] ?? '');
+                    if (val && !acc.includes(val)) acc.push(val);
+                }
+            }
+            byName[name] = { history: acc };
+            if (groupSuggestions && groupSuggestions[name]) {
+                const gs = groupSuggestions[name];
+                if (Array.isArray(gs.groupValues)) {
+                    byName[name].groupValues = gs.groupValues.slice();
+                } else if (typeof gs.groupValue === 'string') {
+                    byName[name].groupValues = [gs.groupValue];
+                }
+            }
+        });
+        return byName;
+    }, [inputHistory, groupSuggestions, variables]);
+
+    /**
+     * 緑の候補Chip（グループ補完）の再計算
+     * 現在の入力と過去の valueGroups の一致度を評価して、未入力フィールドに候補を提示
+     * - time型は対象外
+     * - 入力済み変数でグループとの完全一致をカウントし、スコア=一致数/対象数
+     * - 同スコア時は一致数の多い方、さらに同等なら最新グループ優先
+     * @returns {Object} name -> { groupValue: string }
+     */
+    const computeBestGroupSuggestions = useCallback(() => {
+        try {
+            const shaped = Helpers.ensureInputHistoryShape(inputHistory);
+            const groups = Array.isArray(shaped.valueGroups) ? shaped.valueGroups : [];
+            if (!groups.length) return {};
+
+            const nameToType = new Map((variables || []).map(v => [v.name, v.type]));
+            const currentByName = new Map((variables || []).map(v => [v.name, String(v.value ?? '')]));
+
+            // 各グループの一致度を算出し、スコア順にソート
+            const scored = [];
+            for (let i = 0; i < groups.length; i++) {
+                const g = groups[i];
+                const gv = g && g.variables ? g.variables : {};
+                let considered = 0;
+                let matches = 0;
+                for (const [name, val] of currentByName.entries()) {
+                    const t = nameToType.get(name) || 'text';
+                    if (t === 'time') continue;
+                    if (!val) continue;
+                    considered++;
+                    if (Object.prototype.hasOwnProperty.call(gv, name) && String(gv[name] ?? '') === val) {
+                        matches++;
+                    }
+                }
+                if (considered === 0) continue;
+                if (matches === 0) continue; // 一致ゼロのグループは候補から除外
+                const score = matches / considered;
+                scored.push({ idx: i, score, matches });
+            }
+            scored.sort((a, b) => (
+                b.score - a.score ||
+                b.matches - a.matches ||
+                a.idx - b.idx // 新しい方（idx小）が先
+            ));
+
+            // 各未入力フィールドについて、上位グループから最大3件の候補を収集
+            const suggested = {};
+            for (const [name, type] of nameToType.entries()) {
+                if (type === 'time') continue;
+                const cur = currentByName.get(name) || '';
+                if (cur) continue;
+                const vals = [];
+                for (const item of scored) {
+                    const g = groups[item.idx];
+                    const wv = (g && g.variables) ? g.variables : {};
+                    if (!Object.prototype.hasOwnProperty.call(wv, name)) continue;
+                    const val = String(wv[name] ?? '');
+                    if (!val) continue;
+                    if (!vals.includes(val)) vals.push(val);
+                    if (vals.length >= 3) break;
+                }
+                if (vals.length > 0) suggested[name] = { groupValues: vals };
+            }
+            return suggested;
+        } catch (_) {
+            return {};
+        }
+    }, [inputHistory, variables]);
+
+    // 変数値が変化するたび（Change）に緑Chip候補を更新（Blur依存を排除）
+    useEffect(() => {
+        const next = computeBestGroupSuggestions();
+        setGroupSuggestions(next);
+    }, [computeBestGroupSuggestions]);
     const [variableUsageInfo, setVariableUsageInfo] = useState({
         unusedVariables: [],
         usedVariables: [],
@@ -310,8 +414,49 @@ function App() {
      */
     const handleCopyButtonClick = useCallback(() => {
         copyToClipboard('plain');
+        // グループ保存（空文字含め完全スナップショット）
+        try {
+            const snapshot = Object.fromEntries((variables || []).map(v => [v.name, String(v.value ?? '')]));
+            setInputHistory(prev => {
+                const shaped = Helpers.ensureInputHistoryShape(prev);
+                const groups = Array.isArray(shaped.valueGroups) ? shaped.valueGroups.slice() : [];
+                const last = groups[0];
+                const isSameAsLast = last && JSON.stringify(last?.variables || {}) === JSON.stringify(snapshot);
+                if (!isSameAsLast) {
+                    groups.unshift({ id: Helpers.generateId(), savedAt: new Date().toISOString(), variables: snapshot });
+                }
+                // 上限200
+                const MAX_GROUPS = 200;
+                const trimmed = groups.slice(0, MAX_GROUPS);
+                return { ...shaped, valueGroups: trimmed };
+            });
+        } catch (_) {}
         showToast('コピーしました');
-    }, [copyToClipboard, showToast]);
+    }, [copyToClipboard, showToast, variables, setInputHistory]);
+
+    /**
+     * 変数値を履歴へコミット（time型は対象外）
+     * - per var 履歴は先頭ユニーク追加（最大50件）
+     * - 変数名リストへも登録（最大200件）
+     * - コミット後にグループ補完候補を再計算
+     */
+    const commitVariableValue = useCallback((_name, _value, _type) => {
+        // Changeベースの再計算に切替済み。ここでは安全に最新を再評価しておく。
+        try {
+            const next = computeBestGroupSuggestions();
+            setGroupSuggestions(next);
+        } catch (_) {}
+    }, [computeBestGroupSuggestions]);
+
+    /**
+     * 最新一致グループから補完候補を解決
+     * - committed の name/value に完全一致するグループを新しい順で1件採用
+     * - time型は表示対象外
+     * @param {{name:string,value:string,type?:string}} committed
+     * @returns {Object} name→{groupValue?:string, history?:string[]} の部分マップ
+     */
+    // 旧: 単一フィールド完全一致ベースの候補計算（新仕様で未使用）
+    const resolveGroupSuggestions = useCallback(() => ({}), []);
 
     /**
      * 変数編集モーダルを開く
@@ -506,7 +651,9 @@ function App() {
                         },
                         onEdit: (variableId) => openVariableEditModal(variableId),
                         onAddClick: () => setShowVariableModal(true),
-                        showToast: showToast
+                        showToast: showToast,
+                        onCommitValue: commitVariableValue,
+                        suggestions: variableSuggestions
                     })
                 ),
 
@@ -660,7 +807,19 @@ function App() {
             variables: variables,
             setVariables: setVariables,
             setShowVariableModal: setShowVariableModal,
-            saveToUndoStack: saveToUndoStack
+            saveToUndoStack: saveToUndoStack,
+            inputHistory: inputHistory,
+            onRegisterVariableName: (name) => {
+                try {
+                    if (!name) return;
+                    const MAX_NAME = 200;
+                    setInputHistory(prev => {
+                        const shaped = Helpers.ensureInputHistoryShape(prev);
+                        const names = Helpers.pushUniqueFront(shaped.variableNames || [], String(name), MAX_NAME);
+                        return { ...shaped, variableNames: names };
+                    });
+                } catch (_) {}
+            }
         }),
         showSaveBlockModal && React.createElement(Components.SaveBlockTemplateModal, {
             isOpen: showSaveBlockModal,

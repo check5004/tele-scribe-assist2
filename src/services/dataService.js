@@ -150,8 +150,11 @@ const DataService = {
                     variables: curVars = [],
                     segments: curSegs = [],
                     templates: curTpl = {},
-                    inputHistory: curHist = { variables: {}, segments: [] }
+                    inputHistory: curHistRaw = { variables: {}, segments: [] }
                 } = current || {};
+                const curHist = (window.Helpers && typeof window.Helpers.ensureInputHistoryShape === 'function')
+                  ? window.Helpers.ensureInputHistoryShape(curHistRaw)
+                  : (curHistRaw || { variables: {}, segments: [], variableNames: [], valueGroups: [] });
 
                 if (exportType === 'blocks') {
                     const importedBlocks = Array.isArray(imported?.templates?.block) ? imported.templates.block : [];
@@ -178,7 +181,9 @@ const DataService = {
                 const importedVars = Array.isArray(imported.variables) ? imported.variables : [];
                 const importedSegs = Array.isArray(imported.segments) ? imported.segments : [];
                 const importedTpl = imported.templates || {};
-                const importedHist = imported.inputHistory || { variables: {}, segments: [] };
+                const importedHist = (window.Helpers && typeof window.Helpers.ensureInputHistoryShape === 'function')
+                  ? window.Helpers.ensureInputHistoryShape(imported.inputHistory || {})
+                  : (imported.inputHistory || { variables: {}, segments: [], variableNames: [], valueGroups: [] });
 
                 // variables: nameベースでUpsert（既存があればフィールド更新、なければ追加）
                 const nameToExisting = new Map(curVars.map(v => [v.name, v]));
@@ -243,8 +248,8 @@ const DataService = {
                     }
                 }
 
-                // inputHistory: 変数ごと/セグメント履歴のユニーク和集合
-                const mergedHist = { variables: {}, segments: [] };
+                // inputHistory: 変数ごと/セグメント履歴＋variableNames＋valueGroups をマージ
+                const mergedHist = { variables: {}, segments: [], variableNames: [], valueGroups: [] };
                 const curHistVars = curHist.variables || {};
                 const impHistVars = importedHist.variables || {};
                 const varNames = new Set([...Object.keys(curHistVars), ...Object.keys(impHistVars)]);
@@ -263,6 +268,28 @@ const DataService = {
                         ... (Array.isArray(importedHist.segments) ? importedHist.segments : []).map(String)
                     ])
                 ];
+                // variableNames: ユニーク和集合
+                mergedHist.variableNames = [
+                    ...new Set([
+                        ... (Array.isArray(curHist.variableNames) ? curHist.variableNames : []).map(String),
+                        ... (Array.isArray(importedHist.variableNames) ? importedHist.variableNames : []).map(String)
+                    ])
+                ];
+                // valueGroups: 結合→savedAt降順→id重複排除
+                const allGroups = [
+                    ... (Array.isArray(curHist.valueGroups) ? curHist.valueGroups : []),
+                    ... (Array.isArray(importedHist.valueGroups) ? importedHist.valueGroups : [])
+                ].filter(g => g && typeof g === 'object');
+                const uniqueById = new Map();
+                for (const g of allGroups) {
+                    const gid = String(g.id || '');
+                    if (!gid) continue;
+                    if (!uniqueById.has(gid)) uniqueById.set(gid, g);
+                }
+                const mergedGroups = Array.from(uniqueById.values())
+                  .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')));
+                // 上限適用（200）
+                mergedHist.valueGroups = mergedGroups.slice(0, 200);
 
                 // セット
                 setters.setVariables(mergedVars);
@@ -433,6 +460,38 @@ DataService._validateImportedData = (data) => {
                 if ('segments' in h) {
                     if (!Array.isArray(h.segments) || !h.segments.every(s => typeof s === 'string')) {
                         fail('inputHistory.segments は文字列配列である必要があります');
+                    }
+                }
+                if ('variableNames' in h) {
+                    if (!Array.isArray(h.variableNames) || !h.variableNames.every(s => typeof s === 'string')) {
+                        fail('inputHistory.variableNames は文字列配列である必要があります');
+                    }
+                }
+                if ('valueGroups' in h) {
+                    if (!Array.isArray(h.valueGroups)) {
+                        fail('inputHistory.valueGroups は配列である必要があります');
+                    } else {
+                        h.valueGroups.forEach((g, i) => {
+                            if (typeof g !== 'object' || g === null) {
+                                fail(`inputHistory.valueGroups[${i}] はオブジェクトである必要があります`);
+                                return;
+                            }
+                            if (typeof g.id !== 'string' || !g.id) {
+                                fail(`inputHistory.valueGroups[${i}].id は非空文字列である必要があります`);
+                            }
+                            if (typeof g.savedAt !== 'string' || !g.savedAt) {
+                                fail(`inputHistory.valueGroups[${i}].savedAt は非空文字列である必要があります`);
+                            }
+                            if (typeof g.variables !== 'object' || g.variables === null) {
+                                fail(`inputHistory.valueGroups[${i}].variables はオブジェクトである必要があります`);
+                            } else {
+                                Object.keys(g.variables).forEach((k) => {
+                                    if (typeof g.variables[k] !== 'string') {
+                                        fail(`inputHistory.valueGroups[${i}].variables['${k}'] は文字列である必要があります`);
+                                    }
+                                });
+                            }
+                        });
                     }
                 }
             }

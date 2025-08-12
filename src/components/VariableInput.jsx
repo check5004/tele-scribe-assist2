@@ -15,9 +15,11 @@
  * @param {Object} props - コンポーネントのプロパティ
  * @param {Object} props.variable - 変数オブジェクト
  * @param {Function} props.onChange - 変更時のコールバック関数
+ * @param {Function} [props.onCommitValue] - Blur/Chipクリック時の履歴コミット関数 (name,value,type)
+ * @param {{groupValue?:string, history?:string[]}} [props.suggestions] - 右半分Chipの候補
  * @returns {JSX.Element} 適切な入力コンポーネントのJSX要素
  */
-const VariableInput = React.memo(({ variable, onChange }) => {
+const VariableInput = React.memo(({ variable, onChange, onCommitValue, suggestions, onSuggestOpen, onSuggestClose }) => {
     /**
      * 時刻タイプの場合はTimeInputコンポーネントに委譲
      */
@@ -34,7 +36,9 @@ const VariableInput = React.memo(({ variable, onChange }) => {
     if (variable.type === 'phone') {
         return React.createElement(Components.PhoneInput, {
             variable: variable,
-            onChange: onChange
+            onChange: onChange,
+            onCommitValue: onCommitValue,
+            suggestions: suggestions
         });
     }
 
@@ -47,6 +51,13 @@ const VariableInput = React.memo(({ variable, onChange }) => {
     }, [variable, onChange]);
 
     /**
+     * Blur時に値コミット
+     */
+    const handleBlur = React.useCallback(() => {
+        try { onCommitValue && onCommitValue(variable.name, variable.value || '', variable.type || 'text'); } catch (_) {}
+    }, [onCommitValue, variable]);
+
+    /**
      * クリアボタンクリックハンドラ
      * 入力フィールド右端のゴミ箱アイコン押下で値を空文字にする。
      *
@@ -56,14 +67,71 @@ const VariableInput = React.memo(({ variable, onChange }) => {
         onChange({ ...variable, value: '' });
     }, [variable, onChange]);
 
+    const [openSuggest, setOpenSuggest] = React.useState(false);
+    const dropdownRef = React.useRef(null);
+
     return React.createElement('div', { className: 'relative group' },
         React.createElement('input', {
             type: "text",
             value: variable.value || '',
             onChange: handleTextChange,
+            onBlur: () => { try { handleBlur(); } catch (_) {} try { setTimeout(() => { setOpenSuggest(false); if (typeof onSuggestClose === 'function') onSuggestClose(); }, 120); } catch (_) {} },
+            onFocus: () => { setOpenSuggest(true); try { if (typeof onSuggestOpen === 'function') onSuggestOpen(dropdownRef.current); } catch (_) {} },
             className: "w-full pr-8 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
             placeholder: `${variable.name}を入力`
         }),
+        // 右半分Chipオーバーレイ
+        React.createElement('div', { className: 'pointer-events-none absolute inset-y-0 right-10 w-1/2 flex items-center justify-start gap-1 pl-2 z-10 tsa-scroll-x' },
+            (() => {
+                const chips = [];
+                const values = (suggestions && Array.isArray(suggestions.groupValues)) ? suggestions.groupValues : [];
+                if (!String(variable.value || '').length && values.length > 0) {
+                    values.slice(0, 3).forEach((val, idx) => {
+                        chips.push(React.createElement('button', {
+                            key: `group${idx}`,
+                            type: 'button',
+                            className: 'pointer-events-auto px-2 py-0.5 text-xs bg-transparent border border-emerald-400/60 text-emerald-300 hover:bg-emerald-400/10 rounded',
+                            title: 'グループ候補を適用',
+                            'aria-label': `${variable.name}にグループ候補を適用`,
+                            onMouseDown: (e) => { try { e.preventDefault(); } catch (_) {} },
+                            onClick: () => {
+                                const v = String(val ?? '');
+                                onChange({ ...variable, value: v });
+                                try { onCommitValue && onCommitValue(variable.name, v, variable.type || 'text'); } catch (_) {}
+                            }
+                        }, String(val)));
+                    });
+                }
+                return chips;
+            })()
+        ),
+        // 下部候補ドロップダウン（通常履歴）
+        (() => {
+            const history = (suggestions && Array.isArray(suggestions.history)) ? suggestions.history : [];
+            const inputValue = String(variable.value || '');
+            const max = 5;
+            const filtered = (inputValue
+                ? history.filter(h => String(h || '').includes(inputValue))
+                : history)
+                .filter(h => String(h || '') !== inputValue);
+            const toShow = filtered.slice(0, max);
+            if (!openSuggest || toShow.length === 0) return null;
+            return React.createElement('div', {
+                ref: dropdownRef,
+                className: 'absolute left-0 right-0 mt-1 bg-gray-800 border border-gray-700 rounded shadow-lg z-40 max-h-48 overflow-auto'
+            }, toShow.map((val, i) => React.createElement('button', {
+                key: i,
+                type: 'button',
+                className: 'w-full text-left px-3 py-2 text-sm hover:bg-gray-700',
+                onMouseDown: (e) => { try { e.preventDefault(); } catch (_) {} },
+                onClick: () => {
+                    const v = String(val ?? '');
+                    onChange({ ...variable, value: v });
+                    try { onCommitValue && onCommitValue(variable.name, v, variable.type || 'text'); } catch (_) {}
+                    try { setOpenSuggest(false); } catch (_) {}
+                }
+            }, val)));
+        })(),
         React.createElement('button', {
             type: 'button',
             tabIndex: -1,

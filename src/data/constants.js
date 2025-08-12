@@ -114,9 +114,18 @@ const SAMPLE_TEMPLATES = {
  * variables: 変数ごとの入力履歴（初期状態では空）
  * segments: セグメント入力時の候補一覧
  */
+/**
+ * 初期入力履歴定義（拡張版）
+ * - 既存の variables/segments に加え、変数名リストと値グループ履歴を保持
+ * - 後方互換のため、初期データは空の配列で提供
+ */
 const INITIAL_INPUT_HISTORY = {
     variables: {},
-    segments: ['お世話になっております。', 'よろしくお願いいたします。']
+    segments: ['お世話になっております。', 'よろしくお願いいたします。'],
+    /** @type {string[]} */
+    variableNames: [],
+    /** @type {Array<{id:string,savedAt:string,variables:Record<string,string>}>} */
+    valueGroups: []
 };
 
 /**

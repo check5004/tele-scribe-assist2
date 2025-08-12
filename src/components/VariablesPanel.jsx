@@ -10,9 +10,11 @@
  * @param {Function} props.onEdit - 変数編集モーダル表示 (variableId:string) => void
  * @param {Function} props.onAddClick - 追加ボタン押下ハンドラ () => void
  * @param {Function} [props.showToast] - トースト表示関数 (message:string, durationMs?:number) => void
+ * @param {Function} [props.onCommitValue] - 値コミット関数 (name:string, value:string, type:string) => void
+ * @param {Object} [props.suggestions] - 変数名→候補 { [name]: { groupValue?:string, history?:string[] } }
  * @returns {JSX.Element} 変数一覧パネルのJSX
  */
-const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onDelete, onEdit, onAddClick, showToast }) => {
+const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onDelete, onEdit, onAddClick, showToast, onCommitValue, suggestions }) => {
   /**
    * 変数コピー処理
    * 指定された変数名から `{{変数名}}` 形式の文字列を生成し、クリップボードへコピーした後、トーストで明示表示する
@@ -33,7 +35,31 @@ const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onD
     }
     try { if (typeof showToast === 'function') showToast(`コピーしました: ${text}`); } catch (_) {}
   }, [showToast]);
-  return React.createElement('div', { className: "bg-gray-800 rounded-lg shadow-xl overflow-hidden flex flex-col lg:min-h-0" },
+  const scrollRef = React.useRef(null);
+  const [extraBottomSpace, setExtraBottomSpace] = React.useState(0);
+
+  const handleSuggestOpen = React.useCallback((dropdownEl) => {
+    try {
+      const sc = scrollRef.current;
+      if (!sc || !dropdownEl) return;
+      const scRect = sc.getBoundingClientRect();
+      const ddRect = dropdownEl.getBoundingClientRect();
+      const overflow = Math.ceil(ddRect.bottom - scRect.bottom);
+      if (overflow > 0) {
+        const extra = overflow + 12;
+        setExtraBottomSpace(extra);
+        try { sc.scrollBy({ top: extra, behavior: 'smooth' }); } catch (_) { sc.scrollTop += extra; }
+      } else {
+        setExtraBottomSpace(0);
+      }
+    } catch (_) {}
+  }, []);
+
+  const handleSuggestClose = React.useCallback(() => {
+    setExtraBottomSpace(0);
+  }, []);
+
+  return React.createElement('div', { className: "bg-gray-800 rounded-lg shadow-xl overflow-hidden flex flex-col lg:flex-1 lg:min-h-0" },
     React.createElement('div', { className: "gradient-accent p-3 flex-none" },
       React.createElement('div', { className: "flex items-center justify-between gap-3" },
         React.createElement('h2', { className: "text-lg font-semibold" }, '基本情報（変数）'),
@@ -50,7 +76,7 @@ const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onD
       )
     ),
     React.createElement('div', { className: "p-4 flex flex-col lg:flex-1 lg:min-h-0" },
-      React.createElement('div', { className: "space-y-3 lg:flex-1 lg:min-h-0 lg:overflow-y-auto overflow-visible scrollbar-thin px-2" },
+      React.createElement('div', { ref: scrollRef, className: "space-y-3 lg:flex-1 lg:min-h-0 overflow-y-auto scrollbar-thin px-2", style: { maxHeight: '70vh' } },
         variables.map((variable, index) => (
           React.createElement('div', { key: variable.id, className: "space-y-2" },
             React.createElement('div', { className: "flex items-center justify-between" },
@@ -100,10 +126,15 @@ const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onD
             ),
             React.createElement(Components.VariableInput, {
               variable: variable,
-              onChange: (updated) => onUpdate(index, updated)
+              onChange: (updated) => onUpdate(index, updated),
+              onCommitValue: onCommitValue,
+              suggestions: (suggestions && suggestions[variable.name]) ? suggestions[variable.name] : {},
+              onSuggestOpen: handleSuggestOpen,
+              onSuggestClose: handleSuggestClose
             })
           )
-        ))
+        )),
+        React.createElement('div', { style: { height: (extraBottomSpace || 0) + 'px' }, 'aria-hidden': true })
       )
     )
   );

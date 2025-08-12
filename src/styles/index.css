@@ -173,3 +173,17 @@ body {
 
 /* 変数ハイライトの可読性維持（薄黄色はそのまま） */
 .theme-light .tsa-overlay-content { color: #334155 !important; }
+
+/* ==========================
+   横スクロール（スクロールバー非表示）
+   - 候補Chipの水平リスト表示用
+   ========================== */
+.tsa-scroll-x {
+    overflow-x: auto;
+    white-space: nowrap;
+    -ms-overflow-style: none; /* IE/Edge */
+    scrollbar-width: none; /* Firefox */
+}
+.tsa-scroll-x::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+}
