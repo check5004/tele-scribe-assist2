@@ -95,8 +95,8 @@ const SessionSidebar = React.memo(({ open, sessionHistory, onToggle, onNew, onLo
     role: 'complementary',
     'aria-label': 'セッション履歴サイドバー'
   },
-    React.createElement('div', { className: "w-64 min-w-[16rem] max-w-[16rem] h-full flex flex-col" },
-      React.createElement('div', { className: "p-4" },
+    React.createElement('div', { className: "w-64 min-w-[16rem] max-w-[16rem] h-full flex flex-col min-h-0" },
+      React.createElement('div', { className: "p-4 h-full flex flex-col min-h-0" },
       // 位置入れ替え: 先に「新規作成」ボタン、その後にラベル
       React.createElement('button', {
         onClick: onNew,
@@ -118,7 +118,7 @@ const SessionSidebar = React.memo(({ open, sessionHistory, onToggle, onNew, onLo
         }, 'お気に入り')
       ),
       // リスト（右側スクロールバーの干渉を回避するため右パディング付与＋スクロールバーガターを安定化）
-      React.createElement('div', { className: "space-y-2 max-h-96 overflow-y-auto overflow-x-hidden scrollbar-thin pr-1", style: { scrollbarGutter: 'stable' } },
+      React.createElement('div', { className: "flex-1 min-h-0 space-y-2 overflow-y-auto overflow-x-hidden scrollbar-thin pr-1", style: { scrollbarGutter: 'stable' } },
         displayedSessions.map((session) => (
           React.createElement('div', {
             key: session.id,
@@ -155,27 +155,30 @@ const SessionSidebar = React.memo(({ open, sessionHistory, onToggle, onNew, onLo
         // 空表示
         (displayedSessions.length === 0) && React.createElement('div', { className: "text-sm text-gray-400 p-2" }, activeTab === 'favorites' ? 'お気に入りはまだありません' : '履歴がありません')
       ),
-      React.createElement('hr', { className: "my-4 border-gray-700" }),
-      React.createElement('div', { className: "space-y-2" },
-        React.createElement('h3', { className: "text-sm font-semibold text-gray-300" }, 'テンプレート'),
-        React.createElement('button', {
-          onClick: onOpenTemplateManager,
-          className: "w-full px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors"
-        }, 'テンプレート管理')
-      ),
-      React.createElement('hr', { className: "my-4 border-gray-700" }),
-      React.createElement('div', { className: "space-y-2" },
-        React.createElement('h3', { className: "text-sm font-semibold text-gray-300" }, 'データ管理'),
-        React.createElement('button', {
-          onClick: onOpenDataManagement,
-          className: "w-full px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors"
-        }, 'インポート/エクスポート')
-      ),
-      React.createElement('div', { className: 'lg:hidden mt-6' },
-        React.createElement('button', {
-          onClick: onToggle,
-          className: 'w-full px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors'
-        }, '閉じる')
+      // 下寄せアクション（テンプレート・データ管理・閉じる）
+      React.createElement('div', { className: "mt-auto" },
+        React.createElement('hr', { className: "my-4 border-gray-700" }),
+        React.createElement('div', { className: "space-y-2" },
+          React.createElement('h3', { className: "text-sm font-semibold text-gray-300" }, 'テンプレート'),
+          React.createElement('button', {
+            onClick: onOpenTemplateManager,
+            className: "w-full px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors"
+          }, 'テンプレート管理')
+        ),
+        React.createElement('hr', { className: "my-4 border-gray-700" }),
+        React.createElement('div', { className: "space-y-2" },
+          React.createElement('h3', { className: "text-sm font-semibold text-gray-300" }, 'データ管理'),
+          React.createElement('button', {
+            onClick: onOpenDataManagement,
+            className: "w-full px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors"
+          }, 'インポート/エクスポート')
+        ),
+        React.createElement('div', { className: 'lg:hidden mt-6' },
+          React.createElement('button', {
+            onClick: onToggle,
+            className: 'w-full px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors'
+          }, '閉じる')
+        )
       ))
     )
   );
