@@ -282,6 +282,44 @@ function App() {
     Hooks.useDragDrop(segments, setSegments, saveToUndoStack);
 
     /**
+     * 文節変更時の自動ブロック選択
+     * 文節ブロックDDLが未選択（selectedBlockIndex === -1）のとき、
+     * 現在の文節配列と保存済みブロックの文節配列が「完全一致」するブロックを探索し、
+     * 一致が見つかった場合に該当ブロックを自動的に選択状態にする。
+     *
+     * 仕様背景:
+     * - セッション履歴の復元等により、内容は定型ブロックと一致しているがDDLが未選択のケースがある
+     * - 保存状態や差分UIを正しく反映するため、自動選択で同期させる
+     *
+     * トリガー:
+     * - 文節セクションに何らかの変更があったとき（追加・削除・編集・並び替え等）
+     */
+    useEffect(() => {
+        try {
+            if (selectedBlockIndex >= 0) return; // 既に選択済みなら何もしない
+            const blocks = Array.isArray(templates?.block) ? templates.block : [];
+            if (blocks.length === 0) return;
+
+            const current = segments.map(s => String(s?.content ?? ''));
+            const n = current.length;
+            for (let i = 0; i < blocks.length; i++) {
+                const segs = Array.isArray(blocks[i]?.segments) ? blocks[i].segments.map(s => String(s ?? '')) : [];
+                if (segs.length !== n) continue;
+                let allEqual = true;
+                for (let j = 0; j < n; j++) {
+                    if (segs[j] !== current[j]) { allEqual = false; break; }
+                }
+                if (allEqual) {
+                    setSelectedBlockIndex(i);
+                    setBaselineBlockIndex(i); // 完全一致のため比較基準も同一に合わせる
+                    break;
+                }
+            }
+        } catch (_) {}
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [segments]);
+
+    /**
      * 文節変更ステータスの再計算
      * 選択中のブロック（baseline）と現在のsegmentsを常に比較して
      * 'new'|'edited'|null を割り当てる
