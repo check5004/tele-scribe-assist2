@@ -16,6 +16,103 @@
  */
 const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onDelete, onEdit, onAddClick, showToast, onCommitValue, suggestions }) => {
   /**
+   * 変数表示順計算関数
+   * 文節セクションでの「出現順」に基づき使用中の変数を並べ、未使用の変数は追加順（元配列順）で末尾に配置する。
+   *
+   * 並び替えルール:
+   * - 使用中: 最初に出現した文節のインデックス昇順
+   * - 同一文節内: テキスト内での `{{ 変数名 }}` の先頭位置（index）昇順
+   * - 同点時: 元の追加順（元配列インデックス）昇順
+   * - 未使用: 元の追加順で末尾に連結
+   *
+   * 実装詳細:
+   * - `variableUsageInfo.variableUsage[id].usedInSegments` に含まれる `segmentIndex` と `content` を用いて、
+   *   各変数の初出位置（最も小さい `segmentIndex` と、その行での `{{name}}` の開始位置）を算出する。
+   * - `{{ name }}` の検出は、前後の空白を許容する `/\{\{\s*name\s*\}\}/` で検索し、見つからない場合に厳密一致 `{{name}}` で補完。
+   *
+   * @param {Array} variables - 変数配列
+   * @param {Object} variableUsageInfo - 使用状況情報
+   * @returns {Array<{variable:Object, originalIndex:number}>} 表示順に並んだ項目配列
+   */
+  const computeVariablesDisplayOrder = (variables, variableUsageInfo) => {
+    const items = Array.isArray(variables) ? variables : [];
+    const usage = (variableUsageInfo && variableUsageInfo.variableUsage) ? variableUsageInfo.variableUsage : {};
+
+    const escapeRegExp = (s) => {
+      try {
+        if (window.Helpers && typeof window.Helpers.escapeRegExp === 'function') {
+          return window.Helpers.escapeRegExp(String(s ?? ''));
+        }
+      } catch (_) {}
+      return String(s ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    };
+
+    /**
+     * 指定変数がテキスト中に現れる最初の位置を返す（空白許容）。
+     * 見つからない場合は Number.POSITIVE_INFINITY を返す。
+     * @param {string} text - 行テキスト
+     * @param {string} varName - 変数名
+     * @returns {number} 先頭位置インデックスまたは Infinity
+     */
+    const findFirstVarRefPosition = (text, varName) => {
+      try {
+        const relaxed = new RegExp(`\\{\\{\\s*${escapeRegExp(varName)}\\s*\\}}`);
+        const idx = String(text ?? '').search(relaxed);
+        if (idx >= 0) return idx;
+      } catch (_) {}
+      const strict = `{{${String(varName ?? '')}}}`;
+      const idx2 = String(text ?? '').indexOf(strict);
+      return idx2 >= 0 ? idx2 : Number.POSITIVE_INFINITY;
+    };
+
+    const used = [];
+    const unused = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const v = items[i];
+      const u = usage && usage[v.id];
+      if (u && u.isUsed && Array.isArray(u.usedInSegments) && u.usedInSegments.length > 0) {
+        // 初出（最小segmentIndex、かつその行での位置）を求める
+        let firstSeg = Number.POSITIVE_INFINITY;
+        let firstPos = Number.POSITIVE_INFINITY;
+        for (const occ of u.usedInSegments) {
+          const segIdx = typeof occ.segmentIndex === 'number' ? occ.segmentIndex : Number.POSITIVE_INFINITY;
+          const pos = findFirstVarRefPosition(occ && occ.content, v.name);
+          if (
+            segIdx < firstSeg ||
+            (segIdx === firstSeg && pos < firstPos)
+          ) {
+            firstSeg = segIdx;
+            firstPos = pos;
+          }
+        }
+        used.push({ variable: v, originalIndex: i, firstSegmentIndex: firstSeg, firstPosition: firstPos });
+      } else {
+        unused.push({ variable: v, originalIndex: i });
+      }
+    }
+
+    used.sort((a, b) => (
+      (a.firstSegmentIndex - b.firstSegmentIndex) ||
+      (a.firstPosition - b.firstPosition) ||
+      (a.originalIndex - b.originalIndex)
+    ));
+
+    // 未使用は元の追加順のまま
+    unused.sort((a, b) => a.originalIndex - b.originalIndex);
+
+    return [...used, ...unused];
+  };
+
+  /**
+   * 表示用に並び替えた変数リスト
+   * 依存する `variables` と `variableUsageInfo` が変化したときのみ再計算する
+   */
+  const orderedItems = React.useMemo(() => (
+    computeVariablesDisplayOrder(variables, variableUsageInfo)
+  ), [variables, variableUsageInfo]);
+
+  /**
    * 変数コピー処理
    * 指定された変数名から `{{変数名}}` 形式の文字列を生成し、クリップボードへコピーした後、トーストで明示表示する
    *
@@ -77,7 +174,7 @@ const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onD
     ),
     React.createElement('div', { className: "p-4 flex flex-col lg:flex-1 lg:min-h-0" },
       React.createElement('div', { ref: scrollRef, className: "space-y-3 lg:flex-1 lg:min-h-0 overflow-y-auto scrollbar-thin px-2", style: { maxHeight: '70vh' } },
-        variables.map((variable, index) => (
+        orderedItems.map(({ variable, originalIndex }) => (
           React.createElement('div', { key: variable.id, className: "space-y-2" },
             React.createElement('div', { className: "flex items-center justify-between" },
               React.createElement('div', { className: "flex items-center gap-2" },
@@ -126,7 +223,7 @@ const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onD
             ),
             React.createElement(Components.VariableInput, {
               variable: variable,
-              onChange: (updated) => onUpdate(index, updated),
+              onChange: (updated) => onUpdate(originalIndex, updated),
               onCommitValue: onCommitValue,
               suggestions: (suggestions && suggestions[variable.name]) ? suggestions[variable.name] : {},
               onSuggestOpen: handleSuggestOpen,
