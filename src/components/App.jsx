@@ -400,10 +400,28 @@ function App() {
             timestamp: new Date().toISOString(),
             content: preview,
             variables: [...variables],
-            segments: [...segments]
+            segments: [...segments],
+            favorite: false
         };
         setSessionHistory([newSession, ...sessionHistory].slice(0, 50));
     };
+
+    /**
+     * セッション履歴の「お気に入り」トグル
+     * 指定IDのセッションについて favorite フラグを切り替える（nextが指定されればそれを優先）
+     *
+     * @param {string} sessionId - 対象セッションのID
+     * @param {boolean} [next] - 次の状態（省略時は現在値を反転）
+     * @returns {void}
+     */
+    const toggleSessionFavorite = useCallback((sessionId, next) => {
+        setSessionHistory(prev => (prev || []).map(s => {
+            if (!s || s.id !== sessionId) return s;
+            const current = !!s.favorite;
+            const nextValue = (typeof next === 'boolean') ? next : !current;
+            return { ...s, favorite: nextValue };
+        }));
+    }, []);
 
     /**
      * プレビューの全体コピー（ボタン押下用）
@@ -625,6 +643,7 @@ function App() {
                     setSegments(session.segments);
                     setVariables(session.variables);
                 },
+                onToggleFavorite: (sessionId, next) => toggleSessionFavorite(sessionId, next),
                 onOpenTemplateManager: () => setShowTemplateManager(true),
                 onOpenDataManagement: () => setShowDataManagement(true)
             }),
