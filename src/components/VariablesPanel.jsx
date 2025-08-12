@@ -1,6 +1,6 @@
 /**
  * 変数一覧パネルコンポーネント
- * 各変数の表示、未使用ハイライト、削除、編集を提供
+ * 各変数の表示、未使用ハイライト、削除、編集、コピー（`{{変数名}}`）を提供
  *
  * @param {Object} props - プロパティ
  * @param {Array} props.variables - 変数配列
@@ -9,9 +9,30 @@
  * @param {Function} props.onDelete - 変数削除 (variableId:string) => void
  * @param {Function} props.onEdit - 変数編集モーダル表示 (variableId:string) => void
  * @param {Function} props.onAddClick - 追加ボタン押下ハンドラ () => void
+ * @param {Function} [props.showToast] - トースト表示関数 (message:string, durationMs?:number) => void
  * @returns {JSX.Element} 変数一覧パネルのJSX
  */
-const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onDelete, onEdit, onAddClick }) => {
+const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onDelete, onEdit, onAddClick, showToast }) => {
+  /**
+   * 変数コピー処理
+   * 指定された変数名から `{{変数名}}` 形式の文字列を生成し、クリップボードへコピーした後、トーストで明示表示する
+   *
+   * @param {string} variableName - 対象の変数名
+   * @returns {void}
+   */
+  const handleCopyVariable = React.useCallback((variableName) => {
+    const text = `{{${String(variableName || '').trim()}}}`;
+    try {
+      if (window.DataService && typeof window.DataService.copyToClipboard === 'function') {
+        window.DataService.copyToClipboard(text, 'plain');
+      } else if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        navigator.clipboard.writeText(text);
+      }
+    } catch (_) {
+      try { navigator.clipboard.writeText(text); } catch (__) {}
+    }
+    try { if (typeof showToast === 'function') showToast(`コピーしました: ${text}`); } catch (_) {}
+  }, [showToast]);
   return React.createElement('div', { className: "bg-gray-800 rounded-lg shadow-xl overflow-hidden flex flex-col lg:min-h-0" },
     React.createElement('div', { className: "gradient-accent p-3 flex-none" },
       React.createElement('div', { className: "flex items-center justify-between gap-3" },
@@ -33,13 +54,26 @@ const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onD
         variables.map((variable, index) => (
           React.createElement('div', { key: variable.id, className: "space-y-2" },
             React.createElement('div', { className: "flex items-center justify-between" },
-              React.createElement('label', {
-                className: `text-sm font-medium ${variableUsageInfo.unusedVariables.includes(variable.id) ? 'text-yellow-400 opacity-70' : 'text-gray-100'}`,
-                title: variableUsageInfo.unusedVariables.includes(variable.id) ? '未使用の変数です' : '使用中の変数です'
-              },
-                variable.name,
-                variableUsageInfo.unusedVariables.includes(variable.id) &&
-                React.createElement('span', { className: "ml-2 text-xs text-yellow-300" }, '(未使用)')
+              React.createElement('div', { className: "flex items-center gap-2" },
+                React.createElement('label', {
+                  className: `text-sm font-medium ${variableUsageInfo.unusedVariables.includes(variable.id) ? 'text-yellow-400 opacity-70' : 'text-gray-100'}`,
+                  title: variableUsageInfo.unusedVariables.includes(variable.id) ? '未使用の変数です' : '使用中の変数です'
+                },
+                  variable.name,
+                  variableUsageInfo.unusedVariables.includes(variable.id) &&
+                  React.createElement('span', { className: "ml-2 text-xs text-yellow-300" }, '(未使用)')
+                ),
+                // コピー（アイコン）ボタン
+                React.createElement('button', {
+                  onClick: () => handleCopyVariable(variable.name),
+                  className: "text-gray-300 hover:text-white",
+                  title: `コピー: {{${String(variable.name || '').trim()}}}`,
+                  'aria-label': `コピー: {{${String(variable.name || '').trim()}}}`
+                },
+                  React.createElement('svg', { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
+                    React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2M16 8h2a2 2 0 012 2v8a2 2 0 01-2 2H10a2 2 0 01-2-2v-2" })
+                  )
+                )
               ),
               React.createElement('div', { className: "flex items-center gap-3" },
                 // 編集（鉛筆）ボタン

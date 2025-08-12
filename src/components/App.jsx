@@ -501,7 +501,8 @@ function App() {
                             }
                         },
                         onEdit: (variableId) => openVariableEditModal(variableId),
-                        onAddClick: () => setShowVariableModal(true)
+                        onAddClick: () => setShowVariableModal(true),
+                        showToast: showToast
                     })
                 ),
 
