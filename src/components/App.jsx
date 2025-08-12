@@ -388,22 +388,38 @@ function App() {
     /**
      * クリップボードコピー機能
      * プレビュー内容を指定した形式でクリップボードにコピーし、
-     * 同時に現在の状態をセッション履歴に保存
+     * 同時に現在の状態をセッション履歴に保存する。
+     * 直前履歴と内容（content）が完全一致する場合は、重複追加せず
+     * 先頭要素の更新日時（timestamp）のみを上書きする。
+     *
      * @param {string} format - コピー形式（plain、markdown、html）
+     * @returns {void}
      */
     const copyToClipboard = (format = 'plain') => {
         DataService.copyToClipboard(preview, format);
 
-        // セッション履歴に追加（最大50件まで保持）
-        const newSession = {
-            id: Helpers.generateId(),
-            timestamp: new Date().toISOString(),
-            content: preview,
-            variables: [...variables],
-            segments: [...segments],
-            favorite: false
-        };
-        setSessionHistory([newSession, ...sessionHistory].slice(0, 50));
+        // セッション履歴の重複排除（直前と完全一致ならtimestampのみ更新）
+        setSessionHistory((prev) => {
+            const nowIso = new Date().toISOString();
+            const last = (prev && prev.length > 0) ? prev[0] : null;
+            const currentContent = String(preview ?? '');
+            if (last && String(last.content ?? '') === currentContent) {
+                // 直前と完全一致：先頭のtimestampのみ上書き
+                const updatedFirst = { ...last, timestamp: nowIso };
+                return [updatedFirst, ...prev.slice(1)];
+            }
+
+            // 新規追加（最大50件まで保持）
+            const newSession = {
+                id: Helpers.generateId(),
+                timestamp: nowIso,
+                content: currentContent,
+                variables: [...variables],
+                segments: [...segments],
+                favorite: false
+            };
+            return [newSession, ...(prev || [])].slice(0, 50);
+        });
     };
 
     /**
