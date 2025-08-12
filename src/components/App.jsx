@@ -85,11 +85,15 @@ function App() {
 
     /**
      * 緑の候補Chip（グループ補完）の再計算
-     * 現在の入力と過去の valueGroups の一致度を評価して、未入力フィールドに候補を提示
+     * 現在の変数集合と過去の valueGroups の一致度を評価して、各変数に候補を提示
      * - time型は対象外
-     * - 入力済み変数でグループとの完全一致をカウントし、スコア=一致数/対象数
-     * - 同スコア時は一致数の多い方、さらに同等なら最新グループ優先
-     * @returns {Object} name -> { groupValue: string }
+     * - グループとの一致度: 入力済み変数での完全一致数 / 対象数（未入力は評価対象外）
+     * - ソート: ①スコア降順 ②一致数降順 ③新しいグループ優先
+     * - 出力: 変数ごとに上位グループから最大3件の候補値を重複除外で抽出
+     *
+     * メモ: 以前は「未入力フィールドのみ候補生成」だったが、Chip側で曖昧検索し
+     * 入力中も表示を継続する仕様に合わせ、全フィールドに対して候補を用意する。
+     * @returns {Object} name -> { groupValues: string[] }
      */
     const computeBestGroupSuggestions = useCallback(() => {
         try {
@@ -127,12 +131,10 @@ function App() {
                 a.idx - b.idx // 新しい方（idx小）が先
             ));
 
-            // 各未入力フィールドについて、上位グループから最大3件の候補を収集
+            // 各フィールドについて、上位グループから最大3件の候補を収集（未入力限定を撤廃）
             const suggested = {};
             for (const [name, type] of nameToType.entries()) {
                 if (type === 'time') continue;
-                const cur = currentByName.get(name) || '';
-                if (cur) continue;
                 const vals = [];
                 for (const item of scored) {
                     const g = groups[item.idx];

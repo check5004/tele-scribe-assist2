@@ -11,7 +11,7 @@
  * @param {Function} props.onAddClick - 追加ボタン押下ハンドラ () => void
  * @param {Function} [props.showToast] - トースト表示関数 (message:string, durationMs?:number) => void
  * @param {Function} [props.onCommitValue] - 値コミット関数 (name:string, value:string, type:string) => void
- * @param {Object} [props.suggestions] - 変数名→候補 { [name]: { groupValue?:string, history?:string[] } }
+ * @param {Object} [props.suggestions] - 変数名→候補 { [name]: { groupValues?:string[], history?:string[] } }
  * @returns {JSX.Element} 変数一覧パネルのJSX
  */
 const VariablesPanel = React.memo(({ variables, variableUsageInfo, onUpdate, onDelete, onEdit, onAddClick, showToast, onCommitValue, suggestions }) => {

@@ -6,12 +6,16 @@
  * - onChange: 数字以外は除去して値を反映
  * - onBlur: Helpers.formatJapanesePhone でハイフン整形
  * - onFocus: 編集しやすいように数字のみ表示に戻す
+ * - 右半分の緑Chipは、`groupValues` を対象に曖昧検索（Helpers.fuzzyFilterAndRank）し、
+ *   上位3件を表示する。入力値と候補の完全一致がある場合はChipを非表示。
  *
  * @param {Object} props - プロパティ
  * @param {Object} props.variable - 変数オブジェクト {id, name, type: 'phone', value}
  * @param {Function} props.onChange - 値変更コールバック (updatedVariable:Object) => void
  * @param {Function} [props.onCommitValue] - Blur/Chipクリック時の履歴コミット関数 (name,value,'phone')
- * @param {{groupValue?:string, history?:string[]}} [props.suggestions] - 右半分Chip候補
+ * @param {{groupValues?:string[], history?:string[]}} [props.suggestions] - 右半分Chip候補/下部履歴
+ * @param {Function} [props.onSuggestOpen] - ドロップダウン展開通知
+ * @param {Function} [props.onSuggestClose] - ドロップダウンクローズ通知
  * @returns {JSX.Element} 入力フィールド
  */
 const PhoneInput = React.memo(({ variable, onChange, onCommitValue, suggestions, onSuggestOpen, onSuggestClose }) => {
@@ -75,28 +79,36 @@ const PhoneInput = React.memo(({ variable, onChange, onCommitValue, suggestions,
       className: 'w-full pr-8 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
       placeholder: `${variable.name}を入力（数字のみ）`
     }),
-    // 右半分Chip（グループのみ、入力が空のとき）
+    // 右半分Chip（曖昧検索で上位3件、完全一致時は非表示）
     React.createElement('div', { className: 'pointer-events-none absolute inset-y-0 right-10 w-1/2 flex items-center justify-start gap-1 pl-2 z-10 tsa-scroll-x' },
       (() => {
         const chips = [];
         const values = (suggestions && Array.isArray(suggestions.groupValues)) ? suggestions.groupValues : [];
-        if (!String(variable.value || '').length && values.length > 0) {
-          values.slice(0, 3).forEach((val, idx) => {
-            chips.push(React.createElement('button', {
-              key: `group${idx}`,
-              type: 'button',
-              className: 'pointer-events-auto px-2 py-0.5 text-xs bg-transparent border border-emerald-400/60 text-emerald-300 hover:bg-emerald-400/10 rounded',
-              title: 'グループ候補を適用',
-              'aria-label': `${variable.name}にグループ候補を適用`,
-              onMouseDown: (e) => { try { e.preventDefault(); } catch (_) {} },
-              onClick: () => {
-                const v = String(val ?? '');
-                onChange({ ...variable, value: v });
-                try { onCommitValue && onCommitValue(variable.name, v, 'phone'); } catch (_) {}
-              }
-            }, String(val)));
-          });
-        }
+        const inputValue = String(variable.value || '');
+        const helpers = (typeof window !== 'undefined' && window.Helpers) ? window.Helpers : null;
+        const ranked = (helpers && typeof helpers.fuzzyFilterAndRank === 'function')
+          ? helpers.fuzzyFilterAndRank(values, inputValue)
+          : (inputValue
+              ? values.filter(v => String(v || '').toLowerCase().includes(inputValue.toLowerCase()))
+              : values);
+        const normalizeDigits = (s) => String(s ?? '').replace(/\D/g, '');
+        const hasExactMatch = values.some(v => normalizeDigits(v) === normalizeDigits(inputValue));
+        const toRender = (!hasExactMatch ? ranked.slice(0, 3) : []);
+        toRender.forEach((val, idx) => {
+          chips.push(React.createElement('button', {
+            key: `group${idx}`,
+            type: 'button',
+            className: 'pointer-events-auto px-2 py-0.5 text-xs bg-transparent border border-emerald-400/60 text-emerald-300 hover:bg-emerald-400/10 rounded',
+            title: 'グループ候補を適用',
+            'aria-label': `${variable.name}にグループ候補を適用`,
+            onMouseDown: (e) => { try { e.preventDefault(); } catch (_) {} },
+            onClick: () => {
+              const v = String(val ?? '');
+              onChange({ ...variable, value: v });
+              try { onCommitValue && onCommitValue(variable.name, v, 'phone'); } catch (_) {}
+            }
+          }, String(val)));
+        });
         return chips;
       })()
     ),

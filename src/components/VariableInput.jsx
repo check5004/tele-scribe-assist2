@@ -12,11 +12,18 @@
  * - シンプルなルーティング機能のみを担当
  * - 複雑なロジックは専用コンポーネントで実装
  *
+ * 右半分の緑Chip（グループ候補）仕様:
+ * - 入力中も `groupValues` の上位3件を曖昧検索（Helpers.fuzzyFilterAndRank）で提示
+ * - 入力と候補の完全一致時はChipを非表示
+ * - 入力が空のときは従来どおり先頭3件を表示
+ *
  * @param {Object} props - コンポーネントのプロパティ
  * @param {Object} props.variable - 変数オブジェクト
  * @param {Function} props.onChange - 変更時のコールバック関数
  * @param {Function} [props.onCommitValue] - Blur/Chipクリック時の履歴コミット関数 (name,value,type)
- * @param {{groupValue?:string, history?:string[]}} [props.suggestions] - 右半分Chipの候補
+ * @param {{groupValues?:string[], history?:string[]}} [props.suggestions] - Chip/履歴候補
+ * @param {Function} [props.onSuggestOpen] - 下部ドロップダウン展開に伴うスクロール調整通知
+ * @param {Function} [props.onSuggestClose] - 下部ドロップダウンクローズ通知
  * @returns {JSX.Element} 適切な入力コンポーネントのJSX要素
  */
 const VariableInput = React.memo(({ variable, onChange, onCommitValue, suggestions, onSuggestOpen, onSuggestClose }) => {
@@ -38,7 +45,9 @@ const VariableInput = React.memo(({ variable, onChange, onCommitValue, suggestio
             variable: variable,
             onChange: onChange,
             onCommitValue: onCommitValue,
-            suggestions: suggestions
+            suggestions: suggestions,
+            onSuggestOpen: onSuggestOpen,
+            onSuggestClose: onSuggestClose
         });
     }
 
@@ -80,28 +89,35 @@ const VariableInput = React.memo(({ variable, onChange, onCommitValue, suggestio
             className: "w-full pr-8 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
             placeholder: `${variable.name}を入力`
         }),
-        // 右半分Chipオーバーレイ
+        // 右半分Chipオーバーレイ（曖昧検索で上位3件、完全一致時は非表示）
         React.createElement('div', { className: 'pointer-events-none absolute inset-y-0 right-10 w-1/2 flex items-center justify-start gap-1 pl-2 z-10 tsa-scroll-x' },
             (() => {
                 const chips = [];
                 const values = (suggestions && Array.isArray(suggestions.groupValues)) ? suggestions.groupValues : [];
-                if (!String(variable.value || '').length && values.length > 0) {
-                    values.slice(0, 3).forEach((val, idx) => {
-                        chips.push(React.createElement('button', {
-                            key: `group${idx}`,
-                            type: 'button',
-                            className: 'pointer-events-auto px-2 py-0.5 text-xs bg-transparent border border-emerald-400/60 text-emerald-300 hover:bg-emerald-400/10 rounded',
-                            title: 'グループ候補を適用',
-                            'aria-label': `${variable.name}にグループ候補を適用`,
-                            onMouseDown: (e) => { try { e.preventDefault(); } catch (_) {} },
-                            onClick: () => {
-                                const v = String(val ?? '');
-                                onChange({ ...variable, value: v });
-                                try { onCommitValue && onCommitValue(variable.name, v, variable.type || 'text'); } catch (_) {}
-                            }
-                        }, String(val)));
-                    });
-                }
+                const inputValue = String(variable.value || '');
+                const helpers = (typeof window !== 'undefined' && window.Helpers) ? window.Helpers : null;
+                const ranked = (helpers && typeof helpers.fuzzyFilterAndRank === 'function')
+                    ? helpers.fuzzyFilterAndRank(values, inputValue)
+                    : (inputValue
+                        ? values.filter(v => String(v || '').toLowerCase().includes(inputValue.toLowerCase()))
+                        : values);
+                const hasExactMatch = values.some(v => String(v ?? '') === inputValue);
+                const toRender = (!hasExactMatch ? ranked.slice(0, 3) : []);
+                toRender.forEach((val, idx) => {
+                    chips.push(React.createElement('button', {
+                        key: `group${idx}`,
+                        type: 'button',
+                        className: 'pointer-events-auto px-2 py-0.5 text-xs bg-transparent border border-emerald-400/60 text-emerald-300 hover:bg-emerald-400/10 rounded',
+                        title: 'グループ候補を適用',
+                        'aria-label': `${variable.name}にグループ候補を適用`,
+                        onMouseDown: (e) => { try { e.preventDefault(); } catch (_) {} },
+                        onClick: () => {
+                            const v = String(val ?? '');
+                            onChange({ ...variable, value: v });
+                            try { onCommitValue && onCommitValue(variable.name, v, variable.type || 'text'); } catch (_) {}
+                        }
+                    }, String(val)));
+                });
                 return chips;
             })()
         ),
