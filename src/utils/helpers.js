@@ -533,12 +533,19 @@ const extractMultipleVariableValues = (segmentContent, variablesInLine, currentL
  * プレビュー編集からセグメントと変数を同期更新
  * プレビューテキストエリアでの編集内容を元に、セグメント内容と変数値の両方を適切に更新
  *
+ * 仕様（重要）:
+ * - 行の増減が1行のみのときは、複雑な推定を避け、以下の安全動作に限定する
+ *   - +1行（改行）: カーソル行の直後に空セグメントを挿入する
+ *   - -1行（行削除）: カーソル行（または推定位置）のセグメントを削除する
+ *   これにより、変数や他行への不要な影響を避ける
+ *
  * @param {string} editedPreview - 編集されたプレビューテキスト
  * @param {Array} currentVariables - 現在の変数配列
  * @param {Array} currentSegments - 現在のセグメント配列
+ * @param {number} [cursorLineIndex] - テキストエリアのキャレットから推定したカーソル行番号（0始まり）
  * @returns {Object} 更新された変数とセグメントのオブジェクト {variables, segments}
  */
-const updateSegmentsAndVariablesFromPreview = (editedPreview, currentVariables, currentSegments) => {
+const updateSegmentsAndVariablesFromPreview = (editedPreview, currentVariables, currentSegments, cursorLineIndex) => {
     const editedLines = editedPreview.split('\n');
     const updatedVariables = [...currentVariables];
     let updatedSegments = [...currentSegments];
@@ -552,6 +559,112 @@ const updateSegmentsAndVariablesFromPreview = (editedPreview, currentVariables, 
         });
         return content;
     });
+
+    // 早期判定: 改行が1回だけ追加されたケース（行分割を優先）
+    if (editedLines.length === currentSegments.length + 1) {
+        const currLen = currentSegments.length;
+        const editLen = editedLines.length;
+
+        // 1) 前方から一致をスキップ
+        let pref = 0;
+        while (pref < currLen && pref < editLen && (currentPreviewLines[pref] || '') === (editedLines[pref] || '')) {
+            pref += 1;
+        }
+
+        // 2) 後方から一致をスキップ
+        let currEnd = currLen - 1;
+        let editEnd = editLen - 1;
+        while (currEnd >= pref && editEnd >= pref && (currentPreviewLines[currEnd] || '') === (editedLines[editEnd] || '')) {
+            currEnd -= 1;
+            editEnd -= 1;
+        }
+
+        // 3) 分割対象行（pref）
+        const splitIndex = Math.max(0, Math.min(pref, currLen - 1));
+        const segmentToSplit = currentSegments[splitIndex];
+        const currentLineAtSplit = String(currentPreviewLines[splitIndex] || '');
+        const leftLine = String(editedLines[splitIndex] || '');
+        const rightLine = String(editedLines[splitIndex + 1] || '');
+
+        // 4) 変数の有無確認
+        const variablesInLine = [];
+        currentVariables.forEach(v => {
+            if (segmentToSplit && String(segmentToSplit.content || '').includes(`{{${v.name}}}`)) {
+                variablesInLine.push(v);
+            }
+        });
+
+        // 5) 純粋な行分割かを確認（current == left + right）
+        const isPureSplit = (currentLineAtSplit === (leftLine + rightLine));
+
+        if (variablesInLine.length === 0 && isPureSplit) {
+            // 変数なし: セグメントを文字列で安全に分割
+            const nextSegments = [...currentSegments];
+            nextSegments[splitIndex] = { ...segmentToSplit, content: leftLine };
+            nextSegments.splice(splitIndex + 1, 0, { id: generateId(), content: rightLine });
+            return {
+                variables: updatedVariables,
+                segments: nextSegments
+            };
+        }
+
+        // 6) フォールバック: 変数が絡む場合は空行を適切な位置に挿入
+        //    カーソル行の直後（またはpref位置）へ空セグメントを追加し、副作用を抑える
+        let pos = typeof cursorLineIndex === 'number' && Number.isFinite(cursorLineIndex)
+            ? Math.max(0, Math.min(cursorLineIndex, currentSegments.length))
+            : (splitIndex + 1);
+
+        const segmentsWithEmpty = [...currentSegments];
+        segmentsWithEmpty.splice(pos, 0, { id: generateId(), content: '' });
+        return {
+            variables: updatedVariables,
+            segments: segmentsWithEmpty
+        };
+    }
+
+    // 早期判定: 行が1行減少したケース（行削除）
+    if (editedLines.length === currentSegments.length - 1) {
+        const currLen = currentSegments.length;
+        const editLen = editedLines.length;
+
+        // 1) 前方から一致をスキップ
+        let pref = 0;
+        while (pref < editLen && (currentPreviewLines[pref] || '') === (editedLines[pref] || '')) {
+            pref += 1;
+        }
+
+        // 2) 後方から一致をスキップ
+        let currEnd = currLen - 1;
+        let editEnd = editLen - 1;
+        while (currEnd >= pref && editEnd >= pref && (currentPreviewLines[currEnd] || '') === (editedLines[editEnd] || '')) {
+            currEnd -= 1;
+            editEnd -= 1;
+        }
+
+        // 3) 候補の削除位置（単一削除なら pref が削除行のはず）
+        let deleteIndex = Math.max(0, Math.min(pref, currLen - 1));
+
+        // 4) カーソルヒント: 前行でDeleteにより次行の改行を削除した場合、
+        //    caretは前行にあるが実際に消すのは次行の空行。
+        if (typeof cursorLineIndex === 'number' && Number.isFinite(cursorLineIndex)) {
+            const ci = Math.max(0, Math.min(cursorLineIndex, currLen - 1));
+            const nextIsEmpty = (ci + 1 < currLen) && (String(currentPreviewLines[ci + 1] || '') === '');
+            const caretLineUnchanged = (String(currentPreviewLines[ci] || '') === String(editedLines[Math.min(ci, editLen - 1)] || ''));
+            if (nextIsEmpty && caretLineUnchanged) {
+                deleteIndex = ci + 1;
+            } else if (String(currentPreviewLines[ci] || '') === '') {
+                // カーソル行自体が空なら、その行を優先削除
+                deleteIndex = ci;
+            }
+        }
+
+        const segmentsWithoutOne = [...currentSegments];
+        segmentsWithoutOne.splice(deleteIndex, 1);
+        return {
+            variables: updatedVariables,
+            segments: segmentsWithoutOne
+        };
+    }
 
     // 行数の調整
     if (editedLines.length !== currentSegments.length) {
@@ -586,6 +699,15 @@ const updateSegmentsAndVariablesFromPreview = (editedPreview, currentVariables, 
                     variablesInLine.push(variable);
                 }
             });
+
+            // 空行への変更（変数を含む行が空になった）: 変数推定は行わず、セグメントを空文字へ
+            if (variablesInLine.length > 0 && String(editedLine).trim() === '') {
+                updatedSegments[lineIndex] = {
+                    ...segment,
+                    content: ''
+                };
+                continue;
+            }
 
             if (variablesInLine.length === 0) {
                 // 変数が含まれていない場合：セグメント内容を直接更新
@@ -896,5 +1018,201 @@ window.Helpers = {
     syncVariablesFromPreviewEdit,
     updateVariablesFromPreview,
     extractSingleVariableValue,
-    extractMultipleVariableValues
+    extractMultipleVariableValues,
+    
+    /**
+     * セグメントテンプレートのトークン化
+     * `{{var}}` を変数トークン、その他をリテラルトークンとして分割する
+     *
+     * @param {string} template - セグメントのテンプレート文字列（`{{...}}`含む）
+     * @returns {Array<{type:'literal', text:string, start:number, end:number}|{type:'variable', name:string, start:number, end:number}>} トークン配列
+     */
+    tokenizeSegmentTemplate: (template) => {
+        const src = String(template ?? '');
+        const re = /\{\{\s*([^}\s]+)\s*\}\}/g;
+        const tokens = [];
+        let last = 0;
+        let m;
+        while ((m = re.exec(src)) !== null) {
+            if (m.index > last) {
+                tokens.push({ type: 'literal', text: src.slice(last, m.index), start: last, end: m.index });
+            }
+            tokens.push({ type: 'variable', name: m[1], start: m.index, end: re.lastIndex });
+            last = re.lastIndex;
+        }
+        if (last < src.length) {
+            tokens.push({ type: 'literal', text: src.slice(last), start: last, end: src.length });
+        }
+        return tokens;
+    },
+
+    /**
+     * プレビュー文字列とインデックスマップの生成
+     * 各行（各セグメント）について、展開後文字ごとの出自（リテラル/変数）をマップする
+     *
+     * @param {Array<{content:string}>} segments - セグメント配列
+     * @param {Array<{id:string,name:string,value:string}>} variables - 変数配列
+     * @returns {{previewText:string, lineMaps:Array<{segmentIndex:number, tokens:Array, charMap:Array}>}} 生成結果
+     */
+    renderPreviewWithIndexMap: (segments, variables) => {
+        const varByName = new Map(Array.isArray(variables) ? variables.map(v => [String(v.name), v]) : []);
+        const lineMaps = [];
+        const expandedLines = [];
+        (Array.isArray(segments) ? segments : []).forEach((seg, idx) => {
+            const template = String(seg && seg.content || '');
+            const tokens = window.Helpers.tokenizeSegmentTemplate(template);
+            const parts = [];
+            const charMap = [];
+            tokens.forEach((t, tokenIndex) => {
+                if (t.type === 'literal') {
+                    parts.push(t.text);
+                    for (let k = 0; k < t.text.length; k += 1) {
+                        charMap.push({ type: 'literal', segmentIndex: idx, templateOffset: t.start + k, tokenIndex });
+                    }
+                } else {
+                    const v = varByName.get(String(t.name));
+                    const value = String(v && v.value || `{{${t.name}}}`);
+                    parts.push(value);
+                    for (let k = 0; k < value.length; k += 1) {
+                        charMap.push({ type: 'variable', segmentIndex: idx, variableId: v ? v.id : null, variableName: t.name, offsetInValue: k, tokenIndex });
+                    }
+                }
+            });
+            const expanded = parts.join('');
+            expandedLines.push(expanded);
+            lineMaps.push({ segmentIndex: idx, tokens, charMap, expanded });
+        });
+        return { previewText: expandedLines.join('\n'), lineMaps };
+    },
+
+    /**
+     * テンプレート分割位置の決定（Enter 用）
+     * カーソル列位置から、テンプレート文字列の安全な分割オフセットを返す
+     * - リテラル内: 対応するテンプレートオフセット
+     * - 変数内: プレースホルダ境界（開始/終了）の近い方へスナップ
+     *
+     * @param {{segmentIndex:number, tokens:Array, charMap:Array, expanded:string}} lineMap - 対象行のマップ
+     * @param {number} column - 行内のカーソル列（0始まり）
+     * @returns {number} テンプレート分割オフセット
+     */
+    computeTemplateSplitOffset: (lineMap, column) => {
+        const totalChars = (lineMap && Array.isArray(lineMap.charMap)) ? lineMap.charMap.length : 0;
+        const col = Math.max(0, Math.min(column, totalChars));
+        if (!lineMap || !Array.isArray(lineMap.charMap) || totalChars === 0) {
+            const firstToken = (lineMap && Array.isArray(lineMap.tokens) && lineMap.tokens[0]) ? lineMap.tokens[0] : null;
+            return firstToken ? firstToken.start : 0;
+        }
+
+        // 端のケースを優先処理
+        if (col <= 0) {
+            const firstToken = lineMap.tokens && lineMap.tokens[0];
+            return firstToken ? firstToken.start : 0;
+        }
+        if (col >= totalChars) {
+            const lastToken = lineMap.tokens && lineMap.tokens[lineMap.tokens.length - 1];
+            return lastToken ? lastToken.end : 0;
+        }
+
+        // 分割は列位置の直前と直後の間
+        const leftIdx = col - 1;
+        const rightIdx = col;
+        const left = lineMap.charMap[leftIdx];
+        const right = lineMap.charMap[rightIdx];
+
+        // どちらかがリテラルなら、その側を優先
+        if (right && right.type === 'literal') return right.templateOffset;
+        if (left && left.type === 'literal') return left.templateOffset + 1;
+
+        // 両側とも変数: プレースホルダ境界にスナップ
+        const tokenIndex = right ? right.tokenIndex : (left ? left.tokenIndex : -1);
+        if (tokenIndex >= 0 && Array.isArray(lineMap.tokens)) {
+            const tok = lineMap.tokens[tokenIndex];
+            if (tok && tok.type === 'variable') {
+                // 近い側: 列の位置が値の前半→開始、後半→終了
+                const expandedLen = (lineMap.expanded || '').length;
+                const valueLen = (function () {
+                    const vName = tok.name;
+                    // expanded長から厳密な値長を取るのは難しいので、charMap上の同一tokenの連続個数で測る
+                    let cnt = 0;
+                    for (let i = 0; i < lineMap.charMap.length; i += 1) {
+                        const m = lineMap.charMap[i];
+                        if (m.tokenIndex === tokenIndex && m.type === 'variable') cnt += 1;
+                        else if (cnt > 0) break;
+                    }
+                    return cnt;
+                })();
+                const mid = Math.floor(valueLen / 2);
+                const offsetInToken = right ? right.offsetInValue : (left ? left.offsetInValue + 1 : 0);
+                const snapToStart = offsetInToken <= mid;
+                return snapToStart ? tok.start : tok.end; // テンプレ境界
+            }
+        }
+        // フォールバック: 行末
+        const lastToken = lineMap.tokens && lineMap.tokens[lineMap.tokens.length - 1];
+        return lastToken ? lastToken.end : 0;
+    },
+
+    /**
+     * Enter操作の適用（行分割）
+     * 変数を含む場合はトークン境界へスナップしてテンプレートを分割
+     *
+     * @param {Array<{id:string,content:string}>} segments - セグメント配列
+     * @param {Array} variables - 変数配列（未使用だが将来的拡張用）
+     * @param {number} lineIndex - 行インデックス
+     * @param {number} column - 列インデックス
+     * @param {Array} lineMaps - renderPreviewWithIndexMap の lineMaps
+     * @returns {Array} 更新後セグメント配列
+     */
+    applyEnterAt: (segments, variables, lineIndex, column, lineMaps) => {
+        const idx = Math.max(0, Math.min(lineIndex, (segments || []).length - 1));
+        const lineMap = Array.isArray(lineMaps) ? lineMaps[idx] : null;
+        const seg = segments[idx];
+        if (!seg) return segments;
+        const template = String(seg.content || '');
+        const splitOffset = window.Helpers.computeTemplateSplitOffset(lineMap, column);
+        const left = template.slice(0, splitOffset);
+        const right = template.slice(splitOffset);
+        const next = [...segments];
+        next[idx] = { ...seg, content: left };
+        next.splice(idx + 1, 0, { id: generateId(), content: right });
+        return next;
+    },
+
+    /**
+     * Backspace（行頭）: 前行と結合
+     * @param {Array<{id:string,content:string}>} segments
+     * @param {number} lineIndex
+     * @returns {Array}
+     */
+    applyBackspaceAtLineStart: (segments, lineIndex) => {
+        if (!Array.isArray(segments) || segments.length === 0) return segments;
+        const idx = Math.max(0, Math.min(lineIndex, segments.length - 1));
+        if (idx === 0) return segments; // 先頭行は結合不可
+        const prev = segments[idx - 1];
+        const curr = segments[idx];
+        const merged = String(prev.content || '') + String(curr.content || '');
+        const next = [...segments];
+        next[idx - 1] = { ...prev, content: merged };
+        next.splice(idx, 1);
+        return next;
+    },
+
+    /**
+     * Delete（行末）: 次行と結合
+     * @param {Array<{id:string,content:string}>} segments
+     * @param {number} lineIndex
+     * @returns {Array}
+     */
+    applyDeleteAtLineEnd: (segments, lineIndex) => {
+        if (!Array.isArray(segments) || segments.length === 0) return segments;
+        const idx = Math.max(0, Math.min(lineIndex, segments.length - 1));
+        if (idx >= segments.length - 1) return segments; // 最終行は結合不可
+        const curr = segments[idx];
+        const nextSeg = segments[idx + 1];
+        const merged = String(curr.content || '') + String(nextSeg.content || '');
+        const next = [...segments];
+        next[idx] = { ...curr, content: merged };
+        next.splice(idx + 1, 1);
+        return next;
+    }
 };
