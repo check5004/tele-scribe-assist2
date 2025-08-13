@@ -451,7 +451,7 @@ function App() {
                         }
                     }]);
                 },
-                onLoad: (session) => {
+                onLoad: async (session) => {
                     // セッション履歴適用前の確認ダイアログ
                     // 未保存変更がある場合は強い警告、それ以外でも確認
                     try {
@@ -459,7 +459,8 @@ function App() {
                         const message = hasUnsaved
                             ? '未保存の変更があります。続行すると現在の編集内容が失われる可能性があります。履歴を適用しますか？'
                             : 'このセッション履歴を適用しますか？';
-                        if (!confirm(message)) return;
+                        const ok = await window.UI.confirm({ title: '履歴の適用', message });
+                        if (!ok) return;
                     } catch (_) {}
                     try { saveToUndoStack(); } catch (_) {}
                     setSegments(session.segments);
@@ -493,9 +494,10 @@ function App() {
                             newVariables[index] = updated;
                             setVariables(newVariables);
                         },
-                        onDelete: (variableId) => {
+                        onDelete: async (variableId) => {
                             const impact = Helpers.analyzeVariableDeletionImpact(variableId, variables, segments);
-                            if (impact.canDelete || confirm(impact.warningMessage)) {
+                            const canProceed = impact.canDelete || await window.UI.confirm({ title: '変数の削除', message: impact.warningMessage, okText: '削除する' });
+                            if (canProceed) {
                                 setVariables(variables.filter(v => v.id !== variableId));
                                 saveToUndoStack();
                             }
@@ -528,13 +530,14 @@ function App() {
                                     (templates.block || []).map((b, i) => React.createElement('option', { key: i, value: i }, b.name || `ブロック${i + 1}`))
                                 ),
                                 React.createElement('button', {
-                                    onClick: () => {
+                                    onClick: async () => {
                                         const idx = selectedBlockIndex;
                                         const block = (templates.block || [])[idx];
                                         if (!block) return;
                                         // 未保存変更確認
                                         if (typeof window.__telescribe_hasUnsavedChanges === 'function' && window.__telescribe_hasUnsavedChanges()) {
-                                            if (!confirm('未保存の変更があります。続行すると変更が失われる可能性があります。続行しますか？')) return;
+                                            const ok = await window.UI.confirm({ title: '未保存の変更', message: '未保存の変更があります。続行すると変更が失われる可能性があります。続行しますか？' });
+                                            if (!ok) return;
                                         }
                                         Hooks.useTemplateOps({ variables, setVariables, segments, setSegments, templates, setBaselineBlockIndex, saveToUndoStack }).applyAppendByIndex(idx);
                                     },
@@ -544,12 +547,13 @@ function App() {
                                     title: "選択ブロックを末尾に追加"
                                 }, '追加'),
                                 React.createElement('button', {
-                                    onClick: () => {
+                                    onClick: async () => {
                                         const idx = selectedBlockIndex;
                                         const block = (templates.block || [])[idx];
                                         if (!block) return;
                                         if (typeof window.__telescribe_hasUnsavedChanges === 'function' && window.__telescribe_hasUnsavedChanges()) {
-                                            if (!confirm('未保存の変更があります。続行すると変更が失われます。置換を実行しますか？')) return;
+                                            const ok = await window.UI.confirm({ title: '未保存の変更', message: '未保存の変更があります。続行すると変更が失われます。置換を実行しますか？', okText: '置換する' });
+                                            if (!ok) return;
                                         }
                                         Hooks.useTemplateOps({ variables, setVariables, segments, setSegments, templates, setBaselineBlockIndex, saveToUndoStack }).applyReplaceByIndex(idx);
                                     },

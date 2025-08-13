@@ -80,7 +80,11 @@ const DataService = {
                 const data = JSON.parse(e.target.result);
                 const { valid, exportType, errors } = DataService._validateImportedData(data);
                 if (!valid) {
-                    alert('インポートするJSONの形式が正しくありません:\n\n' + errors.join('\n'));
+                    if (window.UI && typeof window.UI.alert === 'function') {
+                        window.UI.alert({ title: 'インポートエラー', message: 'インポートするJSONの形式が正しくありません:\n\n' + errors.join('\n') });
+                    } else {
+                        alert('インポートするJSONの形式が正しくありません:\n\n' + errors.join('\n'));
+                    }
                     return;
                 }
                 // 各データが存在する場合のみ状態を更新
@@ -88,9 +92,17 @@ const DataService = {
                 if (data.segments) setSegments(data.segments);
                 if (data.templates) setTemplates(data.templates);
                 if (data.inputHistory) setInputHistory(data.inputHistory);
-                alert('データのインポートが完了しました');
+                if (window.UI && typeof window.UI.alert === 'function') {
+                    window.UI.alert({ title: '完了', message: 'データのインポートが完了しました' });
+                } else {
+                    alert('データのインポートが完了しました');
+                }
             } catch (error) {
-                alert('データのインポートに失敗しました: ' + error.message);
+                if (window.UI && typeof window.UI.alert === 'function') {
+                    window.UI.alert({ title: 'エラー', message: 'データのインポートに失敗しました: ' + error.message });
+                } else {
+                    alert('データのインポートに失敗しました: ' + error.message);
+                }
             }
         };
         reader.readAsText(file);
@@ -122,7 +134,11 @@ const DataService = {
                 const imported = JSON.parse(e.target.result);
                 const { valid, exportType, errors } = DataService._validateImportedData(imported);
                 if (!valid) {
-                    alert('インポートするJSONの形式が正しくありません:\n\n' + errors.join('\n'));
+                    if (window.UI && typeof window.UI.alert === 'function') {
+                        window.UI.alert({ title: 'インポートエラー', message: 'インポートするJSONの形式が正しくありません:\n\n' + errors.join('\n') });
+                    } else {
+                        alert('インポートするJSONの形式が正しくありません:\n\n' + errors.join('\n'));
+                    }
                     return;
                 }
 
@@ -141,7 +157,11 @@ const DataService = {
                         if (imported.templates) setters.setTemplates(imported.templates);
                         if (imported.inputHistory) setters.setInputHistory(imported.inputHistory);
                     }
-                    alert('インポート（上書き）が完了しました');
+                    if (window.UI && typeof window.UI.alert === 'function') {
+                        window.UI.alert({ title: '完了', message: 'インポート（上書き）が完了しました' });
+                    } else {
+                        alert('インポート（上書き）が完了しました');
+                    }
                     return;
                 }
 
@@ -173,7 +193,11 @@ const DataService = {
                         }
                     }
                     setters.setTemplates({ ...curTpl, block: nextBlocks });
-                    alert('ブロックのマージインポートが完了しました');
+                    if (window.UI && typeof window.UI.alert === 'function') {
+                        window.UI.alert({ title: '完了', message: 'ブロックのマージインポートが完了しました' });
+                    } else {
+                        alert('ブロックのマージインポートが完了しました');
+                    }
                     return;
                 }
 
@@ -300,9 +324,17 @@ const DataService = {
                 });
                 setters.setInputHistory(mergedHist);
 
-                alert('インポート（マージ）が完了しました');
+                if (window.UI && typeof window.UI.alert === 'function') {
+                    window.UI.alert({ title: '完了', message: 'インポート（マージ）が完了しました' });
+                } else {
+                    alert('インポート（マージ）が完了しました');
+                }
             } catch (error) {
-                alert('データのインポートに失敗しました: ' + error.message);
+                if (window.UI && typeof window.UI.alert === 'function') {
+                    window.UI.alert({ title: 'エラー', message: 'データのインポートに失敗しました: ' + error.message });
+                } else {
+                    alert('データのインポートに失敗しました: ' + error.message);
+                }
             }
         };
         reader.readAsText(file);

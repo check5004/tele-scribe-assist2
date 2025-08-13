@@ -235,10 +235,11 @@ const TemplateManagerModal = ({ templates, setTemplates, isOpen, onClose, onAppl
                                         title: '末尾に追加'
                                     }, '適用(追加)'),
                                     React.createElement('button', {
-                                        onClick: () => {
+                                        onClick: async () => {
                                             try {
                                                 if (window.__telescribe_hasUnsavedChanges && window.__telescribe_hasUnsavedChanges()) {
-                                                    if (!confirm('未保存の変更があります。続行すると変更が失われます。置換を実行しますか？')) return;
+                                                    const ok = await window.UI.confirm({ title: '未保存の変更', message: '未保存の変更があります。続行すると変更が失われます。置換を実行しますか？', okText: '置換する' });
+                                                    if (!ok) return;
                                                 }
                                             } catch (_) {}
                                             onApplyBlock && onApplyBlock(block, 'replace');
