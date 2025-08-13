@@ -619,8 +619,8 @@ function App() {
             )
         ),
 
-        // トースト（右下固定表示）
-        toastState.visible && React.createElement('div', { className: "fixed bottom-4 right-4 z-50" },
+        // トースト（上部中央固定表示）
+        toastState.visible && React.createElement('div', { className: "fixed top-4 left-1/2 -translate-x-1/2 z-50" },
             React.createElement('div', { className: "pointer-events-auto px-4 py-2 bg-gray-800/95 text-white rounded shadow-lg border-l-4 border-green-400" },
                 toastState.message
             )
