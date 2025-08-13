@@ -39,7 +39,9 @@ const DataManagementModal = ({ isOpen, onClose, currentData, onExportAll, onExpo
     } else {
       onExportAll && onExportAll();
     }
-  }, [exportTarget, onExportAll, onExportBlocks]);
+    // エクスポート実行後はモーダルを閉じる
+    onClose && onClose();
+  }, [exportTarget, onExportAll, onExportBlocks, onClose]);
 
   const handleFileChange = useCallback((e) => {
     const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
