@@ -174,6 +174,23 @@ body {
 /* 変数ハイライトの可読性維持（薄黄色はそのまま） */
 .theme-light .tsa-overlay-content { color: #334155 !important; }
 
+/* ライトモード用スクロールバーの視認性向上 */
+.theme-light .scrollbar-thin {
+    /* Firefox */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.5) rgba(15, 23, 42, 0.08);
+}
+.theme-light .scrollbar-thin::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.08);
+}
+.theme-light .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.5);
+    border-radius: 3px;
+}
+.theme-light .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.65);
+}
+
 /* ==========================
    横スクロール（スクロールバー非表示）
    - 候補Chipの水平リスト表示用
