@@ -1,10 +1,9 @@
 /**
  * プレビューセクションコンポーネント
- * プレビュー表示、コピー形式選択、全体コピー操作、およびテキスト編集を提供
+ * プレビュー表示、全体コピー操作、およびテキスト編集を提供
  *
  * 主な機能:
  * - プレビュー内容の表示とテキスト編集
- * - コピー形式（plain/markdown/html）の選択とコピー実行
  * - 全体コピーのボタン操作
  *
  * パフォーマンス:
@@ -14,7 +13,6 @@
  * @param {string} props.preview - 現在のプレビューテキスト
  * @param {Object} props.previewRef - テキストエリアのref
  * @param {Function} props.onChange - テキスト変更時に呼ばれるハンドラ (text: string) => void
- * @param {Function} props.onCopyFormatChange - コピー形式選択時に呼ばれるハンドラ (format: string) => void
  * @param {Function} props.onCopyButtonClick - 全体コピー押下時に呼ばれるハンドラ () => void
  * @returns {JSX.Element} プレビューセクションのJSX
  */
@@ -24,7 +22,7 @@
  * `{{...}}` 形式の変数を枠と背景色で視覚的に強調表示する。
  * 入力・編集機能は従来通り阻害しない。
  */
-const PreviewPane = React.memo(({ preview, previewRef, onChange, onCopyFormatChange, onCopyButtonClick }) => {
+const PreviewPane = React.memo(({ preview, previewRef, onChange, onCopyButtonClick }) => {
   const { useMemo, useCallback, useRef, useEffect } = React;
   const overlayRef = useRef(null);
   const copyButtonRef = useRef(null);
@@ -93,16 +91,6 @@ const PreviewPane = React.memo(({ preview, previewRef, onChange, onCopyFormatCha
       React.createElement('div', { className: "flex items-center justify-between gap-3 flex-wrap" },
         React.createElement('h2', { className: "text-lg font-semibold" }, 'プレビュー'),
         React.createElement('div', { className: "flex items-center gap-2" },
-          React.createElement('select', {
-            defaultValue: "plain",
-            onChange: (e) => onCopyFormatChange && onCopyFormatChange(e.target.value),
-            className: "px-3 py-1.5 bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500",
-            tabIndex: -1
-          },
-            React.createElement('option', { value: "plain" }, 'プレーンテキスト'),
-            React.createElement('option', { value: "markdown" }, 'Markdown'),
-            React.createElement('option', { value: "html" }, 'HTML')
-          ),
           React.createElement('button', {
             ref: copyButtonRef,
             onClick: onCopyButtonClick,
@@ -139,7 +127,7 @@ const PreviewPane = React.memo(({ preview, previewRef, onChange, onCopyFormatCha
           placeholder: "ここに報告文が表示されます...",
           onKeyDown: (e) => {
             if (e.key === 'Tab' && !e.shiftKey) {
-              // 次のTabはコピーへ移動（DDLは無視）
+              // 次のTabはコピーへ移動
               e.preventDefault();
               try { copyButtonRef && copyButtonRef.current && copyButtonRef.current.focus(); } catch (_) {}
             }

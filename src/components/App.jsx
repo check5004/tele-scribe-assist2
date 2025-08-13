@@ -262,8 +262,7 @@ function App() {
      * プレビューの全体コピー（ボタン押下用）
      * プレーンテキストでコピーし、完了トーストを表示
      *
-     * 注意: 形式セレクトの変更時コピーではトーストを表示しない
-     * （明示的なボタン操作に限定して通知）
+     * 通知は明示的なボタン操作に限定
      *
      * @returns {void}
      */
@@ -480,7 +479,6 @@ function App() {
                         preview: preview,
                         previewRef: previewRef,
                         onChange: (text) => { if (preview !== text) handlePreviewChange(text); },
-                        onCopyFormatChange: (format) => copyToClipboard(format),
                         onCopyButtonClick: handleCopyButtonClick
                     }),
 
