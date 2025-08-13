@@ -414,7 +414,7 @@ const AutocompleteInput = React.memo(({
 
         // 候補ドロップダウン
         isOpen && suggestions.length > 0 && React.createElement('div', {
-            className: "absolute z-50 w-full mt-1 bg-gray-700 border border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto"
+            className: "absolute z-50 w-full mt-1 bg-gray-700 border border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto scrollbar-thin"
         },
             suggestions.map((suggestion, index) =>
                 React.createElement('div', {
