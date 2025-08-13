@@ -693,16 +693,21 @@ function App() {
             isOpen: showDataManagement,
             onClose: () => setShowDataManagement(false),
             currentData: { variables, segments, templates, inputHistory },
-            onExportAll: () => DataService.exportData(variables, segments, templates, inputHistory),
-            onExportBlocks: () => DataService.exportBlocks(templates.block || []),
-            onImport: ({ file, mode }) => {
+            onExportAll: () => { DataService.exportData(variables, segments, templates, inputHistory); try { showToast('エクスポートしました'); } catch (_) {} },
+            onExportBlocks: () => { DataService.exportBlocks(templates.block || []); try { showToast('ブロックをエクスポートしました'); } catch (_) {} },
+            onImport: async ({ file, mode }) => {
                 try { saveToUndoStack(); } catch (_) {}
-                DataService.importDataWithMode(file, mode, { variables, segments, templates, inputHistory }, {
+                const result = await DataService.importDataWithModeAsync(file, mode, { variables, segments, templates, inputHistory }, {
                     setVariables,
                     setSegments,
                     setTemplates,
                     setInputHistory
                 });
+                try {
+                    if (result && typeof result.message === 'string' && result.message) {
+                        showToast(result.message);
+                    }
+                } catch (_) {}
             }
         }),
         // 変数編集モーダル

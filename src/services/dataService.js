@@ -59,286 +59,7 @@ const DataService = {
         URL.revokeObjectURL(url);
     },
 
-    /**
-     * データインポート機能
-     * JSONファイルからアプリケーションデータを読み込み、状態を復元
-     * ファイルフォーマットのバリデーションとエラーハンドリングを含む
-     *
-     * @param {Event} event - ファイル入力イベント
-     * @param {Function} setVariables - 変数状態更新関数
-     * @param {Function} setSegments - セグメント状態更新関数
-     * @param {Function} setTemplates - テンプレート状態更新関数
-     * @param {Function} setInputHistory - 入力履歴状態更新関数
-     */
-    importData: (event, setVariables, setSegments, setTemplates, setInputHistory) => {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const data = JSON.parse(e.target.result);
-                const { valid, exportType, errors } = DataService._validateImportedData(data);
-                if (!valid) {
-                    if (window.UI && typeof window.UI.alert === 'function') {
-                        window.UI.alert({ title: 'インポートエラー', message: 'インポートするJSONの形式が正しくありません:\n\n' + errors.join('\n') });
-                    } else {
-                        alert('インポートするJSONの形式が正しくありません:\n\n' + errors.join('\n'));
-                    }
-                    return;
-                }
-                // 各データが存在する場合のみ状態を更新
-                if (data.variables) setVariables(data.variables);
-                if (data.segments) setSegments(data.segments);
-                if (data.templates) setTemplates(data.templates);
-                if (data.inputHistory) setInputHistory(data.inputHistory);
-                if (window.UI && typeof window.UI.alert === 'function') {
-                    window.UI.alert({ title: '完了', message: 'データのインポートが完了しました' });
-                } else {
-                    alert('データのインポートが完了しました');
-                }
-            } catch (error) {
-                if (window.UI && typeof window.UI.alert === 'function') {
-                    window.UI.alert({ title: 'エラー', message: 'データのインポートに失敗しました: ' + error.message });
-                } else {
-                    alert('データのインポートに失敗しました: ' + error.message);
-                }
-            }
-        };
-        reader.readAsText(file);
-    },
-
-    /**
-     * インポート（上書き or マージ選択対応）
-     * 指定ファイルの内容を読み込み、モードに応じて現在データへ適用する
-     *
-     * @param {File|Event} fileOrEvent - 入力ファイル または input[type=file] のchangeイベント
-     * @param {('overwrite'|'merge')} mode - 適用モード（完全上書き or マージ）
-     * @param {Object} current - 現在のデータ { variables, segments, templates, inputHistory }
-     * @param {Object} setters - セッター群 { setVariables, setSegments, setTemplates, setInputHistory }
-     * @returns {void}
-     */
-    importDataWithMode: (fileOrEvent, mode, current, setters) => {
-        const file = (() => {
-            if (fileOrEvent instanceof File) return fileOrEvent;
-            if (fileOrEvent && fileOrEvent.target && fileOrEvent.target.files && fileOrEvent.target.files[0]) {
-                return fileOrEvent.target.files[0];
-            }
-            return null;
-        })();
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const imported = JSON.parse(e.target.result);
-                const { valid, exportType, errors } = DataService._validateImportedData(imported);
-                if (!valid) {
-                    if (window.UI && typeof window.UI.alert === 'function') {
-                        window.UI.alert({ title: 'インポートエラー', message: 'インポートするJSONの形式が正しくありません:\n\n' + errors.join('\n') });
-                    } else {
-                        alert('インポートするJSONの形式が正しくありません:\n\n' + errors.join('\n'));
-                    }
-                    return;
-                }
-
-                if (mode === 'overwrite') {
-                    if (exportType === 'blocks') {
-                        // ブロックのみ上書き
-                        const nextTemplates = {
-                            ...(current.templates || {}),
-                            block: Array.isArray(imported?.templates?.block) ? imported.templates.block : []
-                        };
-                        setters.setTemplates(nextTemplates);
-                    } else {
-                        // 全体上書き（存在するキーのみ）
-                        if (imported.variables) setters.setVariables(imported.variables);
-                        if (imported.segments) setters.setSegments(imported.segments);
-                        if (imported.templates) setters.setTemplates(imported.templates);
-                        if (imported.inputHistory) setters.setInputHistory(imported.inputHistory);
-                    }
-                    if (window.UI && typeof window.UI.alert === 'function') {
-                        window.UI.alert({ title: '完了', message: 'インポート（上書き）が完了しました' });
-                    } else {
-                        alert('インポート（上書き）が完了しました');
-                    }
-                    return;
-                }
-
-                // マージ処理
-                const {
-                    variables: curVars = [],
-                    segments: curSegs = [],
-                    templates: curTpl = {},
-                    inputHistory: curHistRaw = { variables: {}, segments: [] }
-                } = current || {};
-                const curHist = (window.Helpers && typeof window.Helpers.ensureInputHistoryShape === 'function')
-                  ? window.Helpers.ensureInputHistoryShape(curHistRaw)
-                  : (curHistRaw || { variables: {}, segments: [], variableNames: [], valueGroups: [] });
-
-                if (exportType === 'blocks') {
-                    const importedBlocks = Array.isArray(imported?.templates?.block) ? imported.templates.block : [];
-                    const nameToIndex = new Map((curTpl.block || []).map((b, i) => [b.name, i]));
-                    const nextBlocks = [...(curTpl.block || [])];
-                    for (const b of importedBlocks) {
-                        if (!b || typeof b !== 'object') continue;
-                        const name = String(b.name || '').trim();
-                        const segs = Array.isArray(b.segments) ? b.segments.map(s => String(s ?? '')) : [];
-                        if (!name) continue;
-                        if (nameToIndex.has(name)) {
-                            // 既存と同名 → 置換（上書き的マージ）
-                            nextBlocks[nameToIndex.get(name)] = { name, segments: segs };
-                        } else {
-                            nextBlocks.push({ name, segments: segs });
-                        }
-                    }
-                    setters.setTemplates({ ...curTpl, block: nextBlocks });
-                    if (window.UI && typeof window.UI.alert === 'function') {
-                        window.UI.alert({ title: '完了', message: 'ブロックのマージインポートが完了しました' });
-                    } else {
-                        alert('ブロックのマージインポートが完了しました');
-                    }
-                    return;
-                }
-
-                // 全体マージ
-                const importedVars = Array.isArray(imported.variables) ? imported.variables : [];
-                const importedSegs = Array.isArray(imported.segments) ? imported.segments : [];
-                const importedTpl = imported.templates || {};
-                const importedHist = (window.Helpers && typeof window.Helpers.ensureInputHistoryShape === 'function')
-                  ? window.Helpers.ensureInputHistoryShape(imported.inputHistory || {})
-                  : (imported.inputHistory || { variables: {}, segments: [], variableNames: [], valueGroups: [] });
-
-                // variables: nameベースでUpsert（既存があればフィールド更新、なければ追加）
-                const nameToExisting = new Map(curVars.map(v => [v.name, v]));
-                const mergedVars = [...curVars];
-                for (const iv of importedVars) {
-                    if (!iv || typeof iv !== 'object') continue;
-                    const name = iv.name;
-                    if (!name) continue;
-                    const existing = nameToExisting.get(name);
-                    if (existing) {
-                        const idx = mergedVars.findIndex(v => v.id === existing.id);
-                        if (idx >= 0) {
-                            mergedVars[idx] = {
-                                ...existing,
-                                // 値・フォーマット等は取り込み側を優先
-                                value: iv.value,
-                                type: iv.type || existing.type,
-                                format: iv.format || existing.format,
-                                rounding: iv.rounding || existing.rounding
-                            };
-                        }
-                    } else {
-                        mergedVars.push({
-                            id: (window.Helpers && window.Helpers.generateId ? window.Helpers.generateId() : Math.random().toString(36).slice(2)),
-                            name: iv.name,
-                            type: iv.type || 'text',
-                            value: iv.value || '',
-                            format: iv.format,
-                            rounding: iv.rounding
-                        });
-                    }
-                }
-
-                // segments: 取り込み分を末尾に追加（IDは再発行）
-                const mergedSegs = [
-                    ...curSegs,
-                    ...importedSegs.map(s => ({
-                        id: (window.Helpers && window.Helpers.generateId ? window.Helpers.generateId() : Math.random().toString(36).slice(2)),
-                        content: String((s && s.content) ?? s ?? '')
-                    }))
-                ];
-
-                // templates.segment: ユニーク和集合
-                const curSegTpl = (curTpl.segment || []).map(s => String(s ?? ''));
-                const impSegTpl = (importedTpl.segment || []).map(s => String(s ?? ''));
-                const segTplSet = new Set([...curSegTpl, ...impSegTpl]);
-
-                // templates.block: nameでUpsert（同名は置換）
-                const curBlocks = Array.isArray(curTpl.block) ? curTpl.block : [];
-                const impBlocks = Array.isArray(importedTpl.block) ? importedTpl.block : [];
-                const nameToIdx = new Map(curBlocks.map((b, i) => [b.name, i]));
-                const mergedBlocks = [...curBlocks];
-                for (const b of impBlocks) {
-                    if (!b || typeof b !== 'object') continue;
-                    const name = String(b.name || '').trim();
-                    const segs = Array.isArray(b.segments) ? b.segments.map(s => String(s ?? '')) : [];
-                    if (!name) continue;
-                    if (nameToIdx.has(name)) {
-                        mergedBlocks[nameToIdx.get(name)] = { name, segments: segs };
-                    } else {
-                        mergedBlocks.push({ name, segments: segs });
-                    }
-                }
-
-                // inputHistory: 変数ごと/セグメント履歴＋variableNames＋valueGroups をマージ
-                const mergedHist = { variables: {}, segments: [], variableNames: [], valueGroups: [] };
-                const curHistVars = curHist.variables || {};
-                const impHistVars = importedHist.variables || {};
-                const varNames = new Set([...Object.keys(curHistVars), ...Object.keys(impHistVars)]);
-                for (const vn of varNames) {
-                    const list = [
-                        ...new Set([...
-                            (Array.isArray(curHistVars[vn]) ? curHistVars[vn] : []).map(String),
-                            ... (Array.isArray(impHistVars[vn]) ? impHistVars[vn] : []).map(String)
-                        ])
-                    ];
-                    mergedHist.variables[vn] = list;
-                }
-                mergedHist.segments = [
-                    ...new Set([
-                        ... (Array.isArray(curHist.segments) ? curHist.segments : []).map(String),
-                        ... (Array.isArray(importedHist.segments) ? importedHist.segments : []).map(String)
-                    ])
-                ];
-                // variableNames: ユニーク和集合
-                mergedHist.variableNames = [
-                    ...new Set([
-                        ... (Array.isArray(curHist.variableNames) ? curHist.variableNames : []).map(String),
-                        ... (Array.isArray(importedHist.variableNames) ? importedHist.variableNames : []).map(String)
-                    ])
-                ];
-                // valueGroups: 結合→savedAt降順→id重複排除
-                const allGroups = [
-                    ... (Array.isArray(curHist.valueGroups) ? curHist.valueGroups : []),
-                    ... (Array.isArray(importedHist.valueGroups) ? importedHist.valueGroups : [])
-                ].filter(g => g && typeof g === 'object');
-                const uniqueById = new Map();
-                for (const g of allGroups) {
-                    const gid = String(g.id || '');
-                    if (!gid) continue;
-                    if (!uniqueById.has(gid)) uniqueById.set(gid, g);
-                }
-                const mergedGroups = Array.from(uniqueById.values())
-                  .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')));
-                // 上限適用（200）
-                mergedHist.valueGroups = mergedGroups.slice(0, 200);
-
-                // セット
-                setters.setVariables(mergedVars);
-                setters.setSegments(mergedSegs);
-                setters.setTemplates({
-                    segment: Array.from(segTplSet),
-                    block: mergedBlocks
-                });
-                setters.setInputHistory(mergedHist);
-
-                if (window.UI && typeof window.UI.alert === 'function') {
-                    window.UI.alert({ title: '完了', message: 'インポート（マージ）が完了しました' });
-                } else {
-                    alert('インポート（マージ）が完了しました');
-                }
-            } catch (error) {
-                if (window.UI && typeof window.UI.alert === 'function') {
-                    window.UI.alert({ title: 'エラー', message: 'データのインポートに失敗しました: ' + error.message });
-                } else {
-                    alert('データのインポートに失敗しました: ' + error.message);
-                }
-            }
-        };
-        reader.readAsText(file);
-    },
+    // 旧 importData / importDataWithMode は廃止（UI通知を含むため）
 
     /**
      * クリップボードコピー機能
@@ -364,6 +85,222 @@ const DataService = {
         navigator.clipboard.writeText(textToCopy);
         return textToCopy;
     }
+};
+
+/**
+ * インポート（上書き or マージ選択対応・Promise版）
+ * ファイル読み込みと検証・適用を行い、UI通知は行わず結果を返す。
+ *
+ * 戻り値例:
+ * - 成功: { ok: true, mode: 'overwrite'|'merge', exportType: 'all'|'blocks', message: string }
+ * - 失敗: { ok: false, message: string }
+ *
+ * @param {File|Event} fileOrEvent - 入力ファイル または input[type=file] のchangeイベント
+ * @param {('overwrite'|'merge')} mode - 適用モード（完全上書き or マージ）
+ * @param {Object} current - 現在のデータ { variables, segments, templates, inputHistory }
+ * @param {Object} setters - セッター群 { setVariables, setSegments, setTemplates, setInputHistory }
+ * @returns {Promise<{ok:boolean,mode?:string,exportType?:string,message:string}>}
+ */
+DataService.importDataWithModeAsync = (fileOrEvent, mode, current, setters) => {
+    const file = (() => {
+        if (fileOrEvent instanceof File) return fileOrEvent;
+        if (fileOrEvent && fileOrEvent.target && fileOrEvent.target.files && fileOrEvent.target.files[0]) {
+            return fileOrEvent.target.files[0];
+        }
+        return null;
+    })();
+    if (!file) return Promise.resolve({ ok: false, message: 'ファイルが選択されていません' });
+
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const imported = JSON.parse(e.target.result);
+                const { valid, exportType, errors } = DataService._validateImportedData(imported);
+                if (!valid) {
+                    resolve({ ok: false, message: 'インポートするJSONの形式が正しくありません:\n\n' + errors.join('\n') });
+                    return;
+                }
+
+                if (mode === 'overwrite') {
+                    if (exportType === 'blocks') {
+                        // ブロックのみ上書き
+                        const nextTemplates = {
+                            ...((current && current.templates) || {}),
+                            block: Array.isArray(imported?.templates?.block) ? imported.templates.block : []
+                        };
+                        setters.setTemplates(nextTemplates);
+                    } else {
+                        // 全体上書き（存在するキーのみ）
+                        if (imported.variables) setters.setVariables(imported.variables);
+                        if (imported.segments) setters.setSegments(imported.segments);
+                        if (imported.templates) setters.setTemplates(imported.templates);
+                        if (imported.inputHistory) setters.setInputHistory(imported.inputHistory);
+                    }
+                    resolve({ ok: true, mode, exportType, message: 'インポート（上書き）が完了しました' });
+                    return;
+                }
+
+                // マージ処理
+                const {
+                    variables: curVars = [],
+                    segments: curSegs = [],
+                    templates: curTpl = {},
+                    inputHistory: curHistRaw = { variables: {}, segments: [] }
+                } = current || {};
+                const curHist = (window.Helpers && typeof window.Helpers.ensureInputHistoryShape === 'function')
+                    ? window.Helpers.ensureInputHistoryShape(curHistRaw)
+                    : (curHistRaw || { variables: {}, segments: [], variableNames: [], valueGroups: [] });
+
+                if (exportType === 'blocks') {
+                    const importedBlocks = Array.isArray(imported?.templates?.block) ? imported.templates.block : [];
+                    const nameToIndex = new Map((curTpl.block || []).map((b, i) => [b.name, i]));
+                    const nextBlocks = [...(curTpl.block || [])];
+                    for (const b of importedBlocks) {
+                        if (!b || typeof b !== 'object') continue;
+                        const name = String(b.name || '').trim();
+                        const segs = Array.isArray(b.segments) ? b.segments.map(s => String(s ?? '')) : [];
+                        if (!name) continue;
+                        if (nameToIndex.has(name)) {
+                            // 既存と同名 → 置換（上書き的マージ）
+                            nextBlocks[nameToIndex.get(name)] = { name, segments: segs };
+                        } else {
+                            nextBlocks.push({ name, segments: segs });
+                        }
+                    }
+                    setters.setTemplates({ ...curTpl, block: nextBlocks });
+                    resolve({ ok: true, mode, exportType, message: 'ブロックのマージインポートが完了しました' });
+                    return;
+                }
+
+                // 全体マージ
+                const importedVars = Array.isArray(imported.variables) ? imported.variables : [];
+                const importedSegs = Array.isArray(imported.segments) ? imported.segments : [];
+                const importedTpl = imported.templates || {};
+                const importedHist = (window.Helpers && typeof window.Helpers.ensureInputHistoryShape === 'function')
+                    ? window.Helpers.ensureInputHistoryShape(imported.inputHistory || {})
+                    : (imported.inputHistory || { variables: {}, segments: [], variableNames: [], valueGroups: [] });
+
+                // variables: nameベースでUpsert
+                const nameToExisting = new Map(curVars.map(v => [v.name, v]));
+                const mergedVars = [...curVars];
+                for (const iv of importedVars) {
+                    if (!iv || typeof iv !== 'object') continue;
+                    const name = iv.name;
+                    if (!name) continue;
+                    const existing = nameToExisting.get(name);
+                    if (existing) {
+                        const idx = mergedVars.findIndex(v => v.id === existing.id);
+                        if (idx >= 0) {
+                            mergedVars[idx] = {
+                                ...existing,
+                                value: iv.value,
+                                type: iv.type || existing.type,
+                                format: iv.format || existing.format,
+                                rounding: iv.rounding || existing.rounding
+                            };
+                        }
+                    } else {
+                        mergedVars.push({
+                            id: (window.Helpers && window.Helpers.generateId ? window.Helpers.generateId() : Math.random().toString(36).slice(2)),
+                            name: iv.name,
+                            type: iv.type || 'text',
+                            value: iv.value || '',
+                            format: iv.format,
+                            rounding: iv.rounding
+                        });
+                    }
+                }
+
+                // segments: 取り込み分を末尾に追加（ID再発行）
+                const mergedSegs = [
+                    ...curSegs,
+                    ...importedSegs.map(s => ({
+                        id: (window.Helpers && window.Helpers.generateId ? window.Helpers.generateId() : Math.random().toString(36).slice(2)),
+                        content: String((s && s.content) ?? s ?? '')
+                    }))
+                ];
+
+                // templates.segment: ユニーク和集合
+                const curSegTpl = (curTpl.segment || []).map(s => String(s ?? ''));
+                const impSegTpl = (importedTpl.segment || []).map(s => String(s ?? ''));
+                const segTplSet = new Set([...curSegTpl, ...impSegTpl]);
+
+                // templates.block: nameでUpsert
+                const curBlocks = Array.isArray(curTpl.block) ? curTpl.block : [];
+                const impBlocks = Array.isArray(importedTpl.block) ? importedTpl.block : [];
+                const nameToIdx = new Map(curBlocks.map((b, i) => [b.name, i]));
+                const mergedBlocks = [...curBlocks];
+                for (const b of impBlocks) {
+                    if (!b || typeof b !== 'object') continue;
+                    const name = String(b.name || '').trim();
+                    const segs = Array.isArray(b.segments) ? b.segments.map(s => String(s ?? '')) : [];
+                    if (!name) continue;
+                    if (nameToIdx.has(name)) {
+                        mergedBlocks[nameToIdx.get(name)] = { name, segments: segs };
+                    } else {
+                        mergedBlocks.push({ name, segments: segs });
+                    }
+                }
+
+                // inputHistory: 変数ごと/セグメント履歴＋variableNames＋valueGroups をマージ
+                const mergedHist = { variables: {}, segments: [], variableNames: [], valueGroups: [] };
+                const curHistVars = curHist.variables || {};
+                const impHistVars = importedHist.variables || {};
+                const varNames = new Set([...Object.keys(curHistVars), ...Object.keys(impHistVars)]);
+                for (const vn of varNames) {
+                    const list = [
+                        ...new Set([
+                            ...(Array.isArray(curHistVars[vn]) ? curHistVars[vn] : []).map(String),
+                            ...(Array.isArray(impHistVars[vn]) ? impHistVars[vn] : []).map(String)
+                        ])
+                    ];
+                    mergedHist.variables[vn] = list;
+                }
+                mergedHist.segments = [
+                    ...new Set([
+                        ...(Array.isArray(curHist.segments) ? curHist.segments : []).map(String),
+                        ...(Array.isArray(importedHist.segments) ? importedHist.segments : []).map(String)
+                    ])
+                ];
+                mergedHist.variableNames = [
+                    ...new Set([
+                        ...(Array.isArray(curHist.variableNames) ? curHist.variableNames : []).map(String),
+                        ...(Array.isArray(importedHist.variableNames) ? importedHist.variableNames : []).map(String)
+                    ])
+                ];
+                const allGroups = [
+                    ...(Array.isArray(curHist.valueGroups) ? curHist.valueGroups : []),
+                    ...(Array.isArray(importedHist.valueGroups) ? importedHist.valueGroups : [])
+                ].filter(g => g && typeof g === 'object');
+                const uniqueById = new Map();
+                for (const g of allGroups) {
+                    const gid = String(g.id || '');
+                    if (!gid) continue;
+                    if (!uniqueById.has(gid)) uniqueById.set(gid, g);
+                }
+                const mergedGroups = Array.from(uniqueById.values())
+                    .sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')));
+                mergedHist.valueGroups = mergedGroups.slice(0, 200);
+
+                // セット
+                setters.setVariables(mergedVars);
+                setters.setSegments(mergedSegs);
+                setters.setTemplates({
+                    segment: Array.from(segTplSet),
+                    block: mergedBlocks
+                });
+                setters.setInputHistory(mergedHist);
+
+                resolve({ ok: true, mode, exportType, message: 'インポート（マージ）が完了しました' });
+            } catch (error) {
+                resolve({ ok: false, message: 'データのインポートに失敗しました: ' + error.message });
+            }
+        };
+        try { reader.readAsText(file); } catch (err) {
+            resolve({ ok: false, message: 'ファイルの読み込みに失敗しました: ' + (err && err.message ? err.message : String(err)) });
+        }
+    });
 };
 
 /**
