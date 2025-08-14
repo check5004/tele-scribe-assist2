@@ -14,15 +14,17 @@
  * @param {Object} props.previewRef - テキストエリアのref
  * @param {Function} props.onChange - テキスト変更時に呼ばれるハンドラ (text: string) => void
  * @param {Function} props.onCopyButtonClick - 全体コピー押下時に呼ばれるハンドラ () => void
+ * @param {Array<{id:string,content:string}>} props.segments - 現在のセグメント配列
+ * @param {Array<{id:string,name:string,value:string}>} props.variables - 現在の変数配列
  * @returns {JSX.Element} プレビューセクションのJSX
  */
 /**
- * プレビューセクションコンポーネント（変数ハイライト対応）
+ * プレビューセクションコンポーネント（変数ハイライト対応強化）
  * テキストエリアを入力主体として維持しつつ、背後のオーバーレイで
- * `{{...}}` 形式の変数を枠と背景色で視覚的に強調表示する。
- * 入力・編集機能は従来通り阻害しない。
+ * `{{...}}` 形式の変数トークンだけでなく、「変数値に置換された文字列」も
+ * 変数と同じスタイルで強調表示する。入力・編集機能は阻害しない。
  */
-const PreviewPane = React.memo(({ preview, previewRef, onChange, onCopyButtonClick }) => {
+const PreviewPane = React.memo(({ preview, previewRef, onChange, onCopyButtonClick, segments = [], variables = [] }) => {
   const { useMemo, useCallback, useRef, useEffect } = React;
   const overlayRef = useRef(null);
   const copyButtonRef = useRef(null);
@@ -41,10 +43,72 @@ const PreviewPane = React.memo(({ preview, previewRef, onChange, onCopyButtonCli
 
   /**
    * プレビュー文字列をハイライト済みHTMLへ変換（複数行対応）
-   * @param {string} text
-   * @returns {string}
+   * 仕様:
+   * - renderPreviewWithIndexMap の charMap に基づき、変数由来の文字範囲を <span class="tsa-var-token"> で囲む
+   * - フォールバック: セグメント/変数が未提供または失敗時は `{{...}}` 正規表現による簡易ハイライト
+   *
+   * @param {string} text - プレビュー文字列
+   * @param {Array} segs - セグメント配列
+   * @param {Array} vars - 変数配列
+   * @returns {string} オーバーレイ描画用のHTML
    */
-  const toHighlightedHtml = useCallback((text) => {
+  const toHighlightedHtml = useCallback((text, segs, vars) => {
+    try {
+      const canMap = window.Helpers && typeof window.Helpers.renderPreviewWithIndexMap === 'function';
+      if (canMap && Array.isArray(segs) && Array.isArray(vars)) {
+        const { previewText, lineMaps } = window.Helpers.renderPreviewWithIndexMap(segs, vars);
+        const lines = String(text ?? '').split('\n');
+        const htmlLines = [];
+        for (let i = 0; i < lines.length; i += 1) {
+          const line = String(lines[i] ?? '');
+          const map = Array.isArray(lineMaps) ? lineMaps[i] : null;
+          if (!map || !Array.isArray(map.charMap) || map.charMap.length !== line.length) {
+            htmlLines.push(escapeHtml(line));
+            continue;
+          }
+          let runType = map.charMap.length > 0 && map.charMap[0] && map.charMap[0].type === 'variable' ? 'variable' : 'literal';
+          let runTokenIndex = map.charMap.length > 0 && map.charMap[0] && typeof map.charMap[0].tokenIndex === 'number' ? map.charMap[0].tokenIndex : -1;
+          let runStart = 0;
+          let lineHtml = '';
+          for (let pos = 0; pos <= map.charMap.length; pos += 1) {
+            const entry = pos < map.charMap.length ? map.charMap[pos] : null;
+            const currType = entry && entry.type === 'variable' ? 'variable' : 'literal';
+            const currTokenIndex = entry && typeof entry.tokenIndex === 'number' ? entry.tokenIndex : -1;
+            const isBoundary = pos === map.charMap.length || currType !== runType || (currType === 'variable' && currTokenIndex !== runTokenIndex);
+            if (isBoundary) {
+              const chunk = line.slice(runStart, pos);
+              if (chunk) {
+                const escaped = escapeHtml(chunk);
+                if (runType === 'variable') {
+                  // トークンの値有無でスタイルを分岐（未入力: 黄/現状、入力済み: 緑）
+                  let useValueStyle = false;
+                  try {
+                    const tok = Array.isArray(map.tokens) && runTokenIndex >= 0 ? map.tokens[runTokenIndex] : null;
+                    if (tok && tok.type === 'variable') {
+                      const v = Array.isArray(vars) ? vars.find(x => String(x && x.name) === String(tok.name)) : null;
+                      const hasValue = !!(v && String(v.value || '').length > 0);
+                      useValueStyle = hasValue;
+                    }
+                  } catch (_) {}
+                  lineHtml += useValueStyle
+                    ? `<span class=\"tsa-var-token tsa-var-value\">${escaped}</span>`
+                    : `<span class=\"tsa-var-token\">${escaped}</span>`;
+                } else {
+                  lineHtml += escaped;
+                }
+              }
+              runType = currType;
+              runTokenIndex = currTokenIndex;
+              runStart = pos;
+            }
+          }
+          htmlLines.push(lineHtml);
+        }
+        return htmlLines.join('\n');
+      }
+    } catch (_) { /* フォールバックへ */ }
+
+    // フォールバック: `{{...}}` のみをハイライト
     const re = /\{\{\s*([^}\s]+)\s*\}\}/g;
     const src = String(text ?? '');
     let html = '';
@@ -59,7 +123,7 @@ const PreviewPane = React.memo(({ preview, previewRef, onChange, onCopyButtonCli
     return html;
   }, [escapeHtml]);
 
-  const highlightedHtml = useMemo(() => toHighlightedHtml(preview), [preview, toHighlightedHtml]);
+  const highlightedHtml = useMemo(() => toHighlightedHtml(preview, segments, variables), [preview, segments, variables, toHighlightedHtml]);
 
   /**
    * スクロール同期（textarea とオーバーレイ）

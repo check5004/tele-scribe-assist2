@@ -50,11 +50,20 @@ body {
  * - 背景色と枠線で {{...}} を強調
  */
 .tsa-var-token {
-    background-color: rgba(250, 246, 59, 0.15); /* text-blue-500 の淡い背景 */
+    background-color: rgba(250, 246, 59, 0.15); /* 既存: 未入力（黄系） */
     outline: 1px solid rgba(250, 230, 59, 0.45); /* borderの代わりにoutlineでレイアウト非影響 */
     outline-offset: -1px; /* ボックス境界上に描画 */
     border-radius: 0.25rem; /* rounded */
     padding: 0.15rem 0; /* x-0.5 相当 */
+}
+
+/**
+ * 変数「値」用トークン（完了＝緑系）
+ * - 値が設定された変数由来のテキストに適用
+ */
+.tsa-var-token.tsa-var-value {
+    background-color: rgba(34, 197, 94, 0.12); /* green-500 の淡い背景 */
+    outline-color: rgba(34, 197, 94, 0.35);    /* 緑のアウトライン */
 }
 
 /**

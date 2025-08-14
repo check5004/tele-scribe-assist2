@@ -480,7 +480,9 @@ function App() {
                         preview: preview,
                         previewRef: previewRef,
                         onChange: (text) => { if (preview !== text) handlePreviewChange(text); },
-                        onCopyButtonClick: handleCopyButtonClick
+                        onCopyButtonClick: handleCopyButtonClick,
+                        segments: segments,
+                        variables: variables
                     }),
 
                     // 基本情報セクション（コンポーネント化）
