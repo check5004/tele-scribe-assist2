@@ -131,7 +131,10 @@ src/
 
 ## 開発ワークフロー
 
-### 開発サーバー起動
+### 開発サーバー起動・デバッグ
+一応手順を書いておくが、基本的には開発者が起動済のため、起動する必要は無い。
+必要であれば、デバッグ手順などを出力するだけにとどめておく。
+
 ```bash
 # 推奨: 提供されたバッチスクリプト使用（Windows）
 scripts\start-server.bat
@@ -142,8 +145,7 @@ python -m http.server 8000
 npx http-server -p 8000 --cors
 ```
 
-### デバッグ・開発
-- **アクセス**: `http://localhost:8000/index.html`
+### 開発
 - **ファイル編集**: 常に `src/` ディレクトリ内のモジュラーファイルを編集
 - **デバッグ**: ブラウザDevTools使用、localStorage（`telescribeAssistData`キー）確認
 - **CDN依存**: React、Tailwind、SortableJS、Babel読み込み確認
