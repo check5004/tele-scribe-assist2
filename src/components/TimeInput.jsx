@@ -89,6 +89,7 @@ const TimeInput = React.memo(({ variable, onChange }) => {
      * 判定仕様:
      * - 判定値: DateUtils.formatDateTime(new Date(), format, rounding)
      * - これが variable.value と異なる場合に true（＝リロード推奨）
+     * - 現在時刻との差が10分以上（過去・未来問わず）の場合にハイライト
      * - 丸めOFFでも、分や秒がフォーマットに含まれる場合は毎分/毎秒で変化し得るため、そのまま差分判定
      * - 秒は format に含まれていても DateUtils 側で丸め時に 0 固定となる仕様だが、丸めOFFなら秒も比較対象
      */
@@ -107,13 +108,12 @@ const TimeInput = React.memo(({ variable, onChange }) => {
                 // 丸めを考慮した「今」と異なるかを先に判定（リロード価値の前提条件）
                 if (formattedNow === currentValue) { setNeedsReloadHighlight(false); return; }
 
-                // 現在の表示値の日時を推定して差分を計算（10分以上経過でハイライト）
+                // 現在の表示値の日時を推定して差分を計算（10分以上の差でハイライト）
                 const parsed = parseDateFromFormattedValue(currentValue, variable.format);
                 if (!parsed) { setNeedsReloadHighlight(false); return; }
                 const diffMs = now.getTime() - parsed.getTime();
-                if (diffMs < 0) { setNeedsReloadHighlight(false); return; } // 未来時刻は対象外
-                const minutesSince = Math.floor(diffMs / 60000);
-                setNeedsReloadHighlight(minutesSince >= 10);
+                const minutesDiff = Math.abs(Math.floor(diffMs / 60000)); // 絶対値で過去・未来問わず判定
+                setNeedsReloadHighlight(minutesDiff >= 10);
             } catch (e) {
                 // 例外時はハイライトを無効化（安全側）
                 setNeedsReloadHighlight(false);
@@ -287,7 +287,7 @@ const TimeInput = React.memo(({ variable, onChange }) => {
                             ? "bg-blue-700 text-white"
                             : "bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white")
                     ),
-                    title: needsReloadHighlight ? "現在時刻が進みました。クリックして更新" : "現在時刻でリロード"
+                    title: needsReloadHighlight ? "現在時刻と差があります。クリックして更新" : "現在時刻でリロード"
                 }, '🔄'),
 
                 // 詳細設定歯車アイコンボタン
