@@ -68,7 +68,8 @@ const usePreviewSync = (params) => {
       const text = segments.map((segment) => {
         let content = segment.content;
         variables.forEach((variable) => {
-          const regex = new RegExp(`{{${variable.name}}}`, 'g');
+          const nameEsc = Helpers.escapeRegExp(String(variable.name || ''));
+          const regex = new RegExp(`\\{\\{\\s*${nameEsc}\\s*\\}}`, 'g');
           content = content.replace(regex, variable.value || `{{${variable.name}}}`);
         });
         return content;

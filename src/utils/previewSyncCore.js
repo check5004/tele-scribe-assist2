@@ -615,7 +615,10 @@ const updateSegmentsAndVariablesFromPreview = (editedPreview, currentVariables, 
     const currentPreviewLines = (Array.isArray(currentSegments) ? currentSegments : []).map(segment => {
         let content = String(segment.content || '');
         currentVariables.forEach(variable => {
-            const regex = new RegExp(`{{${variable.name}}}`, 'g');
+            const nameEsc = (window.Helpers && typeof window.Helpers.escapeRegExp === 'function')
+                ? window.Helpers.escapeRegExp(String(variable.name || ''))
+                : String(variable.name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`\\{\\{\\s*${nameEsc}\\s*\\}}`, 'g');
             content = content.replace(regex, variable.value || `{{${variable.name}}}`);
         });
         return content;

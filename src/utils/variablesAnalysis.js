@@ -37,7 +37,7 @@ const analyzeVariableUsage = (variables, segments) => {
     safeVariables.forEach(v => {
         // name 内の正規表現メタをエスケープ
         const escaped = String(v.name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        variableRegexMap.set(v.id, new RegExp(`\\{\\{${escaped}\\}}`, 'g'));
+        variableRegexMap.set(v.id, new RegExp(`\\{\\{\\s*${escaped}\\s*\\}}`, 'g'));
     });
 
     safeSegments.forEach((segment, segmentIndex) => {
