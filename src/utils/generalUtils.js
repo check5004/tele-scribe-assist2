@@ -121,6 +121,50 @@ const ensureInputHistoryShape = (h) => {
     return { variables, segments, variableNames, valueGroups };
 };
 
+/**
+ * グラフェム分割（人間が知覚する「1文字」単位）
+ * Intl.Segmenter が利用可能な環境ではグラフェム単位で分割し、未対応の場合は
+ * Array.from によるコードポイント分割（簡易フォールバック）を行う。
+ * 絵文字のZWJ結合や結合文字の一部ケースでは完全に一致しない可能性があるが、
+ * 実用上の精度を優先した実装とする。
+ *
+ * @param {string} input - 処理対象の文字列
+ * @returns {string[]} グラフェム単位の配列
+ */
+const splitGraphemes = (input) => {
+    const s = String(input ?? '');
+    try {
+        if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
+            const seg = new Intl.Segmenter('ja', { granularity: 'grapheme' });
+            const out = [];
+            for (const { segment } of seg.segment(s)) out.push(segment);
+            return out;
+        }
+    } catch (_) {}
+    try {
+        return Array.from(s);
+    } catch (_) {
+        const arr = [];
+        for (let i = 0; i < s.length; i += 1) arr.push(s[i]);
+        return arr;
+    }
+};
+
+/**
+ * 先頭から指定グラフェム数だけ切り出す（グラフェム単位）
+ * 人間的な「1文字」を前提として先頭N文字を取得する。
+ *
+ * @param {string} input - 対象文字列
+ * @param {number} count - 取得するグラフェム数（0以上の整数）
+ * @returns {string} 先頭から N グラフェムの部分文字列
+ */
+const takeFirstGraphemes = (input, count) => {
+    const n = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+    const parts = splitGraphemes(input);
+    if (parts.length <= n) return parts.join('');
+    return parts.slice(0, n).join('');
+};
+
 // グローバル公開（既存 API 維持）
 window.Helpers = Object.assign(window.Helpers || {}, {
     generateId,
@@ -128,7 +172,9 @@ window.Helpers = Object.assign(window.Helpers || {}, {
     escapeRegExp,
     pushUniqueFront,
     fuzzyFilterAndRank,
-    ensureInputHistoryShape
+    ensureInputHistoryShape,
+    splitGraphemes,
+    takeFirstGraphemes
 });
 
 
