@@ -23,6 +23,11 @@
     <!-- Phone number formatting library (for accurate JP formatting) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/libphonenumber-js/1.12.10/libphonenumber-js.min.js"></script>
 
+    <!-- App Version -->
+    <script>
+        window.__APP_VERSION__ = undefined;
+    </script>
+
     <!-- Custom Styles -->
     <link rel="stylesheet" href="src/styles/index.css">
 </head>
@@ -76,9 +81,39 @@
     <script type="text/babel" src="src/components/VariableEditModal.jsx"></script>
     <script type="text/babel" src="src/components/App.jsx"></script>
 
-    <!-- App Initialization -->
+    <!-- App Initialization (version.txt を読み込んでから描画) -->
     <script type="text/babel">
-        ReactDOM.render(React.createElement(Components.App), document.getElementById('root'));
+        (async () => {
+            try {
+                const res = await fetch('version.txt', { cache: 'no-store' });
+                const text = await res.text();
+                window.__APP_VERSION__ = (text || '').trim() || 'dev';
+            } catch (e) {
+                window.__APP_VERSION__ = 'dev';
+            }
+            ReactDOM.render(React.createElement(Components.App), document.getElementById('root'));
+        })();
     </script>
+
+    <!-- Service Worker Registration (cache busting by version) -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                try { navigator.serviceWorker.register('sw.js'); } catch (e) {}
+                try {
+                    let __ts_controller_reloaded__ = false;
+                    navigator.serviceWorker.addEventListener('controllerchange', function() {
+                        // 新しいSWがコントロールを取得したらリロードして最新資産を反映（多重リロード防止）
+                        if (__ts_controller_reloaded__) return;
+                        __ts_controller_reloaded__ = true;
+                        window.location.reload();
+                    });
+                } catch (e) {}
+            });
+        }
+    </script>
+
+    <!-- Offline fallback (静的に提供) -->
+    <link rel="prefetch" href="offline.html" as="document">
 </body>
 </html>

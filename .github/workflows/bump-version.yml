@@ -1,0 +1,116 @@
+# TeleScribe Assist バージョン自動更新ワークフロー
+#
+# 目的:
+# - アプリケーションのバージョン番号を自動的に更新
+# - version.txt ファイルを通じたキャッシュバスティング連携
+# - Service Worker のキャッシュ管理との統合
+name: Bump Version and Update Cache Busting
+
+# トリガー条件:
+# 1. main/master ブランチへのpush時（自動patch更新）
+# 2. 手動実行時（バージョン種別を選択可能）
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      type:
+        description: "バージョン種別を選択 (major/minor/patch)"
+        required: true
+        default: "minor"
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+# GitHubトークンに書き込み権限を付与
+permissions:
+  contents: write
+
+concurrency:
+  group: bump-version-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bump:
+    # github-actions[bot]による無限ループを防止
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      # リポジトリのソースコードをチェックアウト
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # version.txtファイルが存在しない場合は初期バージョンで作成
+      - name: Ensure version.txt exists
+        run: |
+          if [ ! -f version.txt ]; then
+            echo "1.0.0" > version.txt
+          fi
+
+      # 現在のバージョンを読み取り、次のバージョン番号を計算
+      - name: Compute next version
+        id: version
+        shell: bash
+        run: |
+          # 現在のバージョンを読み取り（改行文字を除去）
+          CURRENT=$(cat version.txt | tr -d '\r' | tr -d '\n')
+
+          # セマンティックバージョニング（major.minor.patch）に分割
+          IFS='.' read -r MA MI PA <<< "$CURRENT"
+
+          # デフォルトはpatch更新、手動実行時は選択されたタイプを使用
+          TYPE="patch"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TYPE="${{ github.event.inputs.type }}"
+          fi
+
+          # バージョン種別に応じて数値を更新
+          case "$TYPE" in
+            major)
+              # メジャーバージョン更新: マイナー・パッチをリセット
+              MA=$((MA+1)); MI=0; PA=0;
+              ;;
+            minor)
+              # マイナーバージョン更新: パッチをリセット
+              MI=$((MI+1)); PA=0;
+              ;;
+            patch|*)
+              # パッチバージョン更新（デフォルト）
+              PA=$((PA+1));
+              ;;
+          esac
+
+          # 新しいバージョン文字列を構築
+          NEXT="$MA.$MI.$PA"
+
+          # 後続ステップで参照できるよう出力変数に設定
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "next=$NEXT" >> $GITHUB_OUTPUT
+
+      # 計算された新しいバージョンをversion.txtファイルに書き込み
+      - name: Update version.txt
+        run: echo "${{ steps.version.outputs.next }}" > version.txt
+
+      # 変更をGitリポジトリにコミットしてプッシュ
+      - name: Commit changes
+        run: |
+          # github-actions[bot]としてGit設定
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # version.txtをステージングエリアに追加
+          git add version.txt
+
+          # 実際に変更があった場合のみコミット・プッシュを実行
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            # バージョン更新のコミットメッセージでコミット
+            git commit -m "ci: bump version to ${{ steps.version.outputs.next }}"
+            # リモートリポジトリにプッシュ（Service Workerがversion.txtを監視してキャッシュ更新）
+            git push
+          fi

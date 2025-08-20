@@ -412,7 +412,11 @@ function App() {
                             : React.createElement('svg', { className: "w-5 h-5", fill: "currentColor", viewBox: "0 0 20 20", 'aria-hidden': true },
                                 React.createElement('path', { d: "M17.293 13.293A8 8 0 016.707 2.707 8.001 8.001 0 1017.293 13.293z" })
                             )
-                    )
+                    ),
+                    // バージョン表示（薄く小さく右上）
+                    (typeof window !== 'undefined' && window.__APP_VERSION__)
+                        ? React.createElement('span', { className: "ml-2 text-[11px] leading-none text-white/40" }, `v ${String(window.__APP_VERSION__)}`)
+                        : null
                 )
             )
         ),
