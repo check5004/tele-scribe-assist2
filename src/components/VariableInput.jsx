@@ -79,6 +79,8 @@ const VariableInput = React.memo(({ variable, onChange, onCommitValue, suggestio
     const [openSuggest, setOpenSuggest] = React.useState(false);
     const dropdownRef = React.useRef(null);
 
+    const isEmpty = !String(variable.value || '').trim();
+
     return React.createElement('div', { className: 'relative group' },
         React.createElement('input', {
             type: "text",
@@ -86,7 +88,7 @@ const VariableInput = React.memo(({ variable, onChange, onCommitValue, suggestio
             onChange: handleTextChange,
             onBlur: () => { try { handleBlur(); } catch (_) {} try { setTimeout(() => { setOpenSuggest(false); if (typeof onSuggestClose === 'function') onSuggestClose(); }, 120); } catch (_) {} },
             onFocus: () => { setOpenSuggest(true); try { if (typeof onSuggestOpen === 'function') onSuggestOpen(dropdownRef.current); } catch (_) {} },
-            className: "w-full pr-8 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+            className: "w-full pr-8 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" + (isEmpty ? " tsa-input-empty" : ""),
             placeholder: `${variable.name}を入力`
         }),
         // 右半分Chipオーバーレイ（曖昧検索で上位3件、完全一致時は非表示）

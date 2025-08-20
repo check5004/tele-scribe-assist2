@@ -247,18 +247,20 @@ const TimeInput = React.memo(({ variable, onChange }) => {
             // 入力フィールドと操作ボタンを左寄せで密着配置
             React.createElement('div', { className: "flex items-center gap-1" },
                 // 時刻入力フィールド群
-                parts.map((part, i) =>
-                    React.createElement(React.Fragment, { key: i },
+                parts.map((part, i) => {
+                    const fieldValue = variable.value?.split(/[^0-9]+/)[i] || '';
+                    const isFieldEmpty = !String(fieldValue).trim();
+                    return React.createElement(React.Fragment, { key: i },
                         React.createElement('input', {
                             type: "text",
-                            value: variable.value?.split(/[^0-9]+/)[i] || '',
+                            value: fieldValue,
                             onChange: (e) => handleFieldChange(i, e.target.value),
-                            className: "w-16 px-2 py-1 bg-gray-700 rounded text-center focus:outline-none focus:ring-2 focus:ring-blue-500",
+                            className: ("w-16 px-2 py-1 bg-gray-700 rounded text-center focus:outline-none focus:ring-2 focus:ring-blue-500" + (isFieldEmpty ? " tsa-input-empty" : "")),
                             placeholder: part
                         }),
                         i < separators.length && React.createElement('span', { className: "text-gray-400" }, separators[i])
-                    )
-                ),
+                    );
+                }),
 
                 // 時刻調整ボタングループ（マイナス・プラス）
                 React.createElement('div', { className: "ml-2 flex" },

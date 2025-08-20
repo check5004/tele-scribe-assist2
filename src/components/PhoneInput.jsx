@@ -65,6 +65,8 @@ const PhoneInput = React.memo(({ variable, onChange, onCommitValue, suggestions,
   const [openSuggest, setOpenSuggest] = React.useState(false);
   const dropdownRef = React.useRef(null);
 
+  const isEmpty = !String(variable.value || '').trim();
+
   return React.createElement('div', { className: 'relative group' },
     React.createElement('input', {
       type: 'text',
@@ -76,7 +78,7 @@ const PhoneInput = React.memo(({ variable, onChange, onCommitValue, suggestions,
       onChange: handleChange,
       onBlur: (e) => { try { handleBlur(e); } catch (_) {} try { setTimeout(() => { setOpenSuggest(false); if (typeof onSuggestClose === 'function') onSuggestClose(); }, 120); } catch (_) {} },
       onFocus: (e) => { try { handleFocus(e); } catch (_) {} try { setOpenSuggest(true); if (typeof onSuggestOpen === 'function') onSuggestOpen(dropdownRef.current); } catch (_) {} },
-      className: 'w-full pr-8 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500',
+      className: 'w-full pr-8 px-3 py-2 bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500' + (isEmpty ? ' tsa-input-empty' : ''),
       placeholder: `${variable.name}を入力（数字のみ）`
     }),
     // 右半分Chip（曖昧検索で上位3件、完全一致時は非表示）
