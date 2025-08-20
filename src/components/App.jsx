@@ -482,7 +482,18 @@ function App() {
                         onChange: (text) => { if (preview !== text) handlePreviewChange(text); },
                         onCopyButtonClick: handleCopyButtonClick,
                         segments: segments,
-                        variables: variables
+                        variables: variables,
+                        onCommitVariables: (committedText) => {
+                            try {
+                                const next = (window.Helpers && typeof window.Helpers.addMissingVariablesFromText === 'function')
+                                    ? window.Helpers.addMissingVariablesFromText(committedText, variables)
+                                    : variables;
+                                if (next !== variables) {
+                                    try { saveToUndoStack(); } catch (_) {}
+                                    setVariables(next);
+                                }
+                            } catch (_) {}
+                        }
                     }),
 
                     // 基本情報セクション（コンポーネント化）
@@ -596,17 +607,12 @@ function App() {
                             onAdd: addSegment,
                             onCommitVariables: (committedText) => {
                                 try {
-                                    const names = TemplateUtils.extractVariableNames(committedText);
-                                    if (names.length > 0) {
-                                        const existingNames = new Set(variables.map(v => v.name));
-                                        const toAdd = names.filter(name => !existingNames.has(name));
-                                        if (toAdd.length > 0) {
-                                            try { saveToUndoStack(); } catch (_) {}
-                                            setVariables(prev => ([
-                                                ...prev,
-                                                ...toAdd.map(name => ({ id: Helpers.generateId(), name, type: Helpers.guessVariableTypeByName(name), value: '' }))
-                                            ]));
-                                        }
+                                    const next = (window.Helpers && typeof window.Helpers.addMissingVariablesFromText === 'function')
+                                        ? window.Helpers.addMissingVariablesFromText(committedText, variables)
+                                        : variables;
+                                    if (next !== variables) {
+                                        try { saveToUndoStack(); } catch (_) {}
+                                        setVariables(next);
                                     }
                                 } catch (_) {}
                             },

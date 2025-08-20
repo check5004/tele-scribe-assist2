@@ -101,3 +101,54 @@ window.Helpers = Object.assign(window.Helpers || {}, {
 });
 
 
+/**
+ * テキストから未登録変数を自動追加するユーティリティ
+ * `{{ 変数名 }}` 形式のプレースホルダを抽出し、既存に存在しない変数を末尾に追加する。
+ * 追加がない場合は元の配列インスタンスをそのまま返す（=== 比較で検出可能）。
+ *
+ * 実装詳細:
+ * - 変数名抽出は `window.TemplateUtils.extractVariableNames` を使用（/\{\{\s*([^}\s]+)\s*\}\}/g）
+ * - タイプ推定は `window.Helpers.guessVariableTypeByName` を使用（電話系は 'phone'、他は 'text'）
+ * - ID生成は `window.Helpers.generateId`
+ *
+ * 注意:
+ * - 並び順の最適化（出現順への並べ替え）は VariablesPanel 側の表示順計算で実施しているため、
+ *   本関数では配列順を変更しない（追加時は末尾）。
+ *
+ * @param {string|string[]} input - 対象テキストまたは行配列
+ * @param {Array<{id:string,name:string,type:string,value:any}>} variables - 既存の変数配列
+ * @returns {Array<{id:string,name:string,type:string,value:any}>} 追加後の変数配列（追加なしなら元配列）
+ */
+const addMissingVariablesFromText = (input, variables) => {
+    const current = Array.isArray(variables) ? variables : [];
+    let names = [];
+    try {
+        if (window.TemplateUtils && typeof window.TemplateUtils.extractVariableNames === 'function') {
+            names = window.TemplateUtils.extractVariableNames(input);
+        }
+    } catch (_) { names = []; }
+
+    if (!Array.isArray(names) || names.length === 0) return variables;
+
+    const existing = new Set(current.map(v => String(v && v.name)));
+    const toAdd = names.filter(n => !existing.has(String(n)));
+    if (toAdd.length === 0) return variables;
+
+    const next = [
+        ...current,
+        ...toAdd.map(name => ({
+            id: (window.Helpers && typeof window.Helpers.generateId === 'function') ? window.Helpers.generateId() : Math.random().toString(36).slice(2),
+            name: String(name || ''),
+            type: (window.Helpers && typeof window.Helpers.guessVariableTypeByName === 'function') ? window.Helpers.guessVariableTypeByName(name) : 'text',
+            value: ''
+        }))
+    ];
+    return next;
+};
+
+// 公開拡張
+window.Helpers = Object.assign(window.Helpers || {}, {
+    addMissingVariablesFromText
+});
+
+

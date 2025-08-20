@@ -24,7 +24,7 @@
  * `{{...}}` 形式の変数トークンだけでなく、「変数値に置換された文字列」も
  * 変数と同じスタイルで強調表示する。入力・編集機能は阻害しない。
  */
-const PreviewPane = React.memo(({ preview, previewRef, onChange, onCopyButtonClick, segments = [], variables = [] }) => {
+const PreviewPane = React.memo(({ preview, previewRef, onChange, onCopyButtonClick, segments = [], variables = [], onCommitVariables }) => {
   const { useMemo, useCallback, useRef, useEffect } = React;
   const overlayRef = useRef(null);
   const copyButtonRef = useRef(null);
@@ -189,6 +189,7 @@ const PreviewPane = React.memo(({ preview, previewRef, onChange, onCopyButtonCli
           onChange: (e) => onChange && onChange(e.target.value),
           className: "w-full h-48 px-3 py-2 bg-gray-700 tsa-overlay-input rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 scrollbar-thin resize-none",
           placeholder: "ここに報告文が表示されます...",
+          onBlur: () => { try { if (typeof onCommitVariables === 'function') onCommitVariables(preview); } catch (_) {} },
           onKeyDown: (e) => {
             if (e.key === 'Tab' && !e.shiftKey) {
               // 次のTabはコピーへ移動
